@@ -9,6 +9,8 @@ else()
 endif()
 
 set(_patch_command ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_LIST_DIR}/common.jam ./tools/build/src/tools/common.jam)
+# C++17/modern-clang compatibility (std::unary_function removal, MPL enum constexpr)
+set(_patch_command ${_patch_command} && ${PATCH_CMD} ${CMAKE_CURRENT_LIST_DIR}/boost-cxx17-clang.patch)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     configure_file(${CMAKE_CURRENT_LIST_DIR}/user-config.jam boost-user-config.jam)

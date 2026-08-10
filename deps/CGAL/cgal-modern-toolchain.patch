@@ -1,0 +1,53 @@
+--- a/Installation/cmake/modules/CGAL_GeneratorSpecificSettings.cmake
++++ b/Installation/cmake/modules/CGAL_GeneratorSpecificSettings.cmake
+@@ -39,7 +39,7 @@
+ 
+   # From james Bigler, in the cmake users list.
+   IF (APPLE)
+-    exec_program(uname ARGS -v  OUTPUT_VARIABLE DARWIN_VERSION)
++    execute_process(COMMAND uname -v OUTPUT_VARIABLE DARWIN_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+     string(REGEX MATCH "[0-9]+" DARWIN_VERSION ${DARWIN_VERSION})
+     message(STATUS "DARWIN_VERSION=${DARWIN_VERSION}")
+     if (DARWIN_VERSION GREATER 8)
+--- a/Installation/cmake/modules/CGAL_SetupBoost.cmake
++++ b/Installation/cmake/modules/CGAL_SetupBoost.cmake
+@@ -17,6 +17,10 @@
+ 
+ include(${CMAKE_CURRENT_LIST_DIR}/CGAL_TweakFindBoost.cmake)
+ 
++if(POLICY CMP0167)
++  cmake_policy(SET CMP0167 NEW)
++endif()
++
+ find_package( Boost 1.48 REQUIRED )
+ 
+ if(Boost_FOUND AND Boost_VERSION VERSION_LESS 1.70)
+--- a/BGL/include/CGAL/boost/graph/iterator.h
++++ b/BGL/include/CGAL/boost/graph/iterator.h
+@@ -221,7 +221,7 @@
+ 
+   operator bool_type() const
+   {
+-    return (! (this->base() == nullptr)) ?
++    return (! (this->pos == halfedge_descriptor())) ?
+       &Halfedge_around_source_iterator::this_type_does_not_support_comparisons : 0;
+   }
+ 
+@@ -321,7 +321,7 @@
+ 
+   operator bool_type() const
+   {
+-    return (! (this->base() == nullptr)) ?
++    return (! (this->pos == halfedge_descriptor())) ?
+       &Halfedge_around_target_iterator::this_type_does_not_support_comparisons : 0;
+   }
+ 
+@@ -420,7 +420,7 @@
+ 
+   operator bool_type() const
+   {
+-    return (! (this->base() == nullptr)) ?
++    return (! (this->pos == halfedge_descriptor())) ?
+       &Halfedge_around_face_iterator::this_type_does_not_support_comparisons : 0;
+   }
+ 
