@@ -1447,6 +1447,18 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(200, true));
 
+    def = this->add("external_perimeter_extrusion_multiplier", coPercent);
+    def->label = L("External perimeter extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("This factor changes the amount of flow proportionally, but only for external perimeter lines. "
+        "Internal perimeters, infill and every other line type are not affected. "
+        "It is applied on top of the filament extrusion_multiplier and of print_extrusion_multiplier. "
+        "Mainly useful inside modifier volumes, to tune the flow of the visible surface of a zone.");
+    def->sidetext = L("%");
+    def->mode = comSimpleAE | comSuSi;
+    def->min = 2;
+    def->set_default_value(new ConfigOptionPercent(100));
+
     def = this->add("external_perimeter_extrusion_width", coFloatOrPercent);
     def->label = L("External perimeters");
     def->full_label = L("External perimeters width");
@@ -1748,6 +1760,19 @@ void PrintConfigDef::init_fff_params()
         "check filament diameter and your firmware E steps."
         " This print setting is multiplied against the extrusion_multiplier from the filament tab."
         " Its only purpose is to offer the same functionality but on a per-object basis."); // TODO: replace "against" with "with"?
+    def->sidetext = L("%");
+    def->mode = comSimpleAE | comSuSi;
+    def->min = 2;
+    def->set_default_value(new ConfigOptionPercent(100));
+
+    def = this->add("perimeter_extrusion_multiplier", coPercent);
+    def->label = L("Internal perimeter extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("This factor changes the amount of flow proportionally, but only for internal perimeter lines. "
+        "External perimeters, infill and every other line type are not affected. "
+        "It is applied on top of the filament extrusion_multiplier and of print_extrusion_multiplier. "
+        "Mainly useful inside modifier volumes, to tune the flow of the internal walls of a zone "
+        "without changing its visible surface.");
     def->sidetext = L("%");
     def->mode = comSimpleAE | comSuSi;
     def->min = 2;
@@ -7555,6 +7580,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "external_infill_margin",
 "external_perimeter_acceleration",
 "external_perimeter_cut_corners",
+"external_perimeter_extrusion_multiplier",
 "external_perimeter_extrusion_spacing",
 "external_perimeter_fan_speed",
 "external_perimeter_overlap",
@@ -7648,6 +7674,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "overhangs_speed_enforce",
 "overhangs_width_speed",
 "perimeter_bonding",
+"perimeter_extrusion_multiplier",
 "perimeter_extrusion_spacing",
 "perimeter_loop_seam",
 "perimeter_loop",
