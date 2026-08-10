@@ -22,3 +22,7 @@ deps/deps-*
 # MacOS Ignores
 .DS_Store
 
+
+# IDE / generated
+.idea/
+cmake/CPackConfig.cmake
