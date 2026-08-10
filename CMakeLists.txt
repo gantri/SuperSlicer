@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.13)
 project(Slic3r)
 
+if(POLICY CMP0167)
+    # CMake >= 3.30: use Boost's own BoostConfig.cmake instead of the removed FindBoost module
+    cmake_policy(SET CMP0167 NEW)
+endif()
+
 include("version.inc")
 include(GNUInstallDirs)
 include(CMakeDependentOption)
@@ -498,7 +503,6 @@ foreach(po_file ${L10N_PO_FILES})
         COMMAND msgmerge -N -o ${po_file} ${po_file} "${L10N_DIR}/Slic3r.pot"
         # delete obsolete lines from resulting PO to avoid conflicts after a merging of it with wxWidgets.po
         COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
-        DEPENDS ${po_file}
     )
     endif()
 endforeach()
@@ -518,7 +522,6 @@ foreach(po_file ${L10N_PO_FILES})
         COMMAND msgcat --use-first -o ${po_file} ${po_file} ${wx_po_file}
         # delete obsolete lines from resulting PO
         COMMAND msgattrib --no-obsolete -o ${po_file} ${po_file}
-        DEPENDS ${po_file}
     )
 endforeach()
 
@@ -535,7 +538,6 @@ foreach(po_file ${L10N_PO_FILES})
         TARGET gettext_po_to_mo PRE_BUILD
         COMMAND msgfmt ARGS --check-format -o ${mo_file} ${po_file}
         #COMMAND msgfmt ARGS --check-compatibility -o ${mo_file} ${po_file}
-        DEPENDS ${po_file}
     )
 endforeach()
 

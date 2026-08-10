@@ -126,7 +126,7 @@ function(OPENVDB_ABI_VERSION_FROM_PRINT OPENVDB_PRINT)
 
   if(NOT EXISTS ${OPENVDB_PRINT})
     if(NOT OpenVDB_FIND_QUIETLY)
-      message(WARNING "vdb_print not found! ${OPENVDB_PRINT}")
+      message(STATUS "vdb_print not found! ${OPENVDB_PRINT}")
     endif()
     return()
   endif()
