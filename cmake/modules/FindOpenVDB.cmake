@@ -123,10 +123,15 @@ if (OPENVDB_FIND_MODULE_PATH)
 endif ()
 # ###########################################################################
 
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.5)
 # Monitoring <PackageName>_ROOT variables
 if(POLICY CMP0074)
   cmake_policy(SET CMP0074 NEW)
+endif()
+
+# CMake >= 3.30: use BoostConfig.cmake instead of the removed FindBoost module
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
 endif()
 
 if(OpenVDB_FIND_QUIETLY)
@@ -321,7 +326,7 @@ OPENVDB_ABI_VERSION_FROM_PRINT(
 
 if(NOT OpenVDB_FIND_QUIETLY)
   if(NOT OpenVDB_ABI)
-    message(WARNING "Unable to determine OpenVDB ABI version from OpenVDB "
+    message(STATUS "Unable to determine OpenVDB ABI version from OpenVDB "
       "installation. The library major version \"${OpenVDB_MAJOR_VERSION}\" "
       "will be inferred. If this is not correct, use "
       "add_definitions(-DOPENVDB_ABI_VERSION_NUMBER=N)"

@@ -3683,7 +3683,9 @@ std::string GCode::extrude_loop_vase(const ExtrusionLoop &original_loop, const s
             // calculate extrusion length per distance unit
             double e_per_mm_per_height = (path->mm3_per_mm / this->m_layer->height)
                 * m_writer.tool()->e_per_mm3()
-                * this->config().print_extrusion_multiplier.get_abs_value(1);
+                * this->config().print_extrusion_multiplier.get_abs_value(1)
+                * (path->role() == erPerimeter ? this->config().perimeter_extrusion_multiplier.get_abs_value(1) :
+                   path->role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.);
             if (m_writer.extrusion_axis().empty())
                 e_per_mm_per_height = 0;
             //extrude
@@ -4659,7 +4661,9 @@ std::string GCode::extrude_multi_path3D(const ExtrusionMultiPath3D &multipath3D,
         // calculate extrusion length per distance unit
         double e_per_mm = path.mm3_per_mm
             * m_writer.tool()->e_per_mm3()
-            * this->config().print_extrusion_multiplier.get_abs_value(1);
+            * this->config().print_extrusion_multiplier.get_abs_value(1)
+            * (path.role() == erPerimeter ? this->config().perimeter_extrusion_multiplier.get_abs_value(1) :
+           path.role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.);
         if (m_writer.extrusion_axis().empty()) e_per_mm = 0;
         double path_length = 0.;
         {
@@ -4775,7 +4779,9 @@ std::string GCode::extrude_path_3D(const ExtrusionPath3D &path, const std::strin
     // calculate extrusion length per distance unit
     double e_per_mm = path.mm3_per_mm
         * m_writer.tool()->e_per_mm3()
-        * this->config().print_extrusion_multiplier.get_abs_value(1);
+        * this->config().print_extrusion_multiplier.get_abs_value(1)
+        * (path.role() == erPerimeter ? this->config().perimeter_extrusion_multiplier.get_abs_value(1) :
+           path.role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.);
     if (m_writer.extrusion_axis().empty()) e_per_mm = 0;
     double path_length = 0.;
     {
@@ -5112,7 +5118,9 @@ std::string GCode::_extrude(const ExtrusionPath &path, const std::string &descri
     // calculate extrusion length per distance unit
     double e_per_mm = path.mm3_per_mm
         * m_writer.tool()->e_per_mm3()
-        * this->config().print_extrusion_multiplier.get_abs_value(1);
+        * this->config().print_extrusion_multiplier.get_abs_value(1)
+        * (path.role() == erPerimeter ? this->config().perimeter_extrusion_multiplier.get_abs_value(1) :
+           path.role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.);
     if (m_layer->bottom_z() < EPSILON) e_per_mm *= this->config().first_layer_flow_ratio.get_abs_value(1);
     if (m_writer.extrusion_axis().empty()) e_per_mm = 0;
     path.polyline.ensure_fitting_result_valid();

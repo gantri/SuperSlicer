@@ -200,6 +200,8 @@ void Layer::make_perimeters()
                 && config.overhangs_width           == other_config.overhangs_width
                 && config.overhangs_reverse         == other_config.overhangs_reverse
                 && config.overhangs_reverse_threshold == other_config.overhangs_reverse_threshold
+                && config.external_perimeter_extrusion_multiplier == other_config.external_perimeter_extrusion_multiplier
+                && config.perimeter_extrusion_multiplier == other_config.perimeter_extrusion_multiplier
                 && config.perimeter_extrusion_width == other_config.perimeter_extrusion_width
                 && config.perimeter_loop            == other_config.perimeter_loop
                 && config.perimeter_loop_seam       == other_config.perimeter_loop_seam
