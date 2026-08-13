@@ -4,34 +4,40 @@ on:
   push:
     branches:
       - gantri-main
+  workflow_dispatch:
 
 jobs:
   build_dep:
-    runs-on: windows-2019
+    runs-on: windows-2022
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        toolset: '14.29'
     - name: mkdir in deps
       run: mkdir deps/build
     - name: cmake and make deps
       working-directory: ./deps/build
       run: |
-        cmake .. -G "Visual Studio 16 2019" -A x64
+        cmake .. -G "Visual Studio 17 2022" -A x64 -T v142
         msbuild /m ALL_BUILD.vcxproj
     - name: Upload artifact
-      uses: actions/upload-artifact@v1.0.0
+      uses: actions/upload-artifact@v4
       with:
         name: deps_win
         path: ./deps/build/destdir/
+        include-hidden-files: true
 
   build:
-    runs-on: windows-2019
+    runs-on: windows-2022
     needs: build_dep
-    
+
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
     - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        toolset: '14.29'
     - name: update submodule profiles
       working-directory: ./resources/profiles
       run: git submodule update --init
@@ -41,7 +47,7 @@ jobs:
     - name: mkdir in deps directory
       run: mkdir deps/destdir
     - name: download deps
-      uses: actions/download-artifact@v1
+      uses: actions/download-artifact@v4
       with:
         name: deps_win
         path: deps/destdir
@@ -53,7 +59,7 @@ jobs:
       run: mkdir build
     - name: cmake
       working-directory: ./build
-      run: cmake .. -G "Visual Studio 16 2019" -A x64 -DCMAKE_PREFIX_PATH="d:\a\${{ github.event.repository.name }}\${{ github.event.repository.name }}\deps\destdir\usr\local"
+      run: cmake .. -G "Visual Studio 17 2022" -A x64 -T v142 -DCMAKE_PREFIX_PATH="${{ github.workspace }}\deps\destdir\usr\local"
     - name: make
       working-directory: ./build
       run: msbuild /m /P:Configuration=RelWithDebInfo INSTALL.vcxproj
@@ -103,7 +109,7 @@ jobs:
 #      shell: cmd
 #      run: '"C:/Program Files/7-Zip/7z.exe" a -tzip nightly.zip *'
     - name: Upload artifact
-      uses: actions/upload-artifact@v1.0.0
+      uses: actions/upload-artifact@v4
       with:
         name: nightly_win64
         path: build/package/
