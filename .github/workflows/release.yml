@@ -1,9 +1,18 @@
-name: C/C++ Release candidate windows x64
+name: Release windows x64
+
+# Publishes a release from a tag, e.g. `gantri-v1.0.0`.
+# The tag only names the Gantri fork: the SuperSlicer version stays pinned to the one
+# in version.inc, and the fork version goes into the build id suffix, so the About
+# dialog reads `SuperSlicer_2.5.59.2+gantri.1.0.0`.
+#
+# Running this manually (workflow_dispatch) builds and uploads the artifact but does
+# not publish anything, which is the way to rehearse a release before tagging.
 
 on:
   push:
-    branches:
-      - rc
+    tags:
+      - 'gantri-v*'
+  workflow_dispatch:
 
 jobs:
   build_dep:
@@ -11,8 +20,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-      with:
-        ref: 'rc'
     - uses: ilammy/msvc-dev-cmd@v1
       with:
         toolset: '14.29'
@@ -33,6 +40,8 @@ jobs:
   build:
     runs-on: windows-2022
     needs: build_dep
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -42,9 +51,19 @@ jobs:
     - name: update submodule profiles
       working-directory: ./resources/profiles
       run: git submodule update --init
-    - name: change date in version
+    - name: resolve version from the tag
       shell: powershell
-      run: (Get-Content version.inc) | Foreach-Object {$_ -replace "\+UNKNOWN", ("")} | Set-Content version.inc
+      run: |
+        if ($env:GITHUB_REF -like 'refs/tags/*') {
+          $ver = $env:GITHUB_REF_NAME -replace '^gantri-v', ''
+        } else {
+          $ver = "dev." + $env:GITHUB_SHA.Substring(0, 7)
+        }
+        Write-Host "Gantri version: $ver"
+        Add-Content -Path $env:GITHUB_ENV -Value "GANTRI_VERSION=$ver"
+    - name: stamp version
+      shell: powershell
+      run: (Get-Content version.inc) | Foreach-Object {$_ -replace "\+UNKNOWN", ("+gantri." + $env:GANTRI_VERSION)} | Set-Content version.inc
     - name: mkdir in deps directory
       run: mkdir deps/destdir
     - name: download deps
@@ -52,10 +71,6 @@ jobs:
       with:
         name: deps_win
         path: deps/destdir
-    - name: echo dir deps
-      run: dir deps
-    - name: echo dir deps destdir
-      run: dir deps/destdir
     - name: mkdir
       run: mkdir build
     - name: cmake
@@ -70,10 +85,7 @@ jobs:
     - name: make .pot
       working-directory: ./build
       run: msbuild /m /P:Configuration=Release gettext_make_pot.vcxproj
-    - name: create directory and copy into it
-      working-directory: ./build
-      run: ls
-    - name: create directory and copy into it
+    - name: create package directory
       working-directory: ./build
       shell: powershell
         #todo: add the opengl folder
@@ -107,12 +119,22 @@ jobs:
         xcopy /RCYIE src\release\*.exe package\
         xcopy /RCYIE c:\windows\system32\VCRUNTIME140* package\
         del package\opengl32.dll
-#    - name: create zip
-#      working-directory: ./build
-#      shell: cmd
-#      run: '"C:/Program Files/7-Zip/7z.exe" a -tzip nightly.zip *'
+    - name: create zip
+      working-directory: ./build
+      shell: cmd
+      run: '"C:/Program Files/7-Zip/7z.exe" a -tzip ..\SuperSlicer_Gantri_%GANTRI_VERSION%_win64.zip .\package\*'
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: rc_win64
+        name: SuperSlicer_Gantri_${{ env.GANTRI_VERSION }}_win64
         path: build/package/
+    - name: publish release
+      if: startsWith(github.ref, 'refs/tags/')
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        gh release create "$GITHUB_REF_NAME" \
+          --title "SuperSlicer Gantri $GANTRI_VERSION" \
+          --generate-notes \
+          "SuperSlicer_Gantri_${GANTRI_VERSION}_win64.zip"
