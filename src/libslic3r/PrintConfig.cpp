@@ -3886,6 +3886,18 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(75, true));
 
+    def = this->add("overhangs_next_perimeter", coBool);
+    def->label = L("Extend to adjacent perimeter");
+    def->full_label = L("Extend overhangs to the adjacent perimeter");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("Also classify as overhang the part of the perimeter that is directly next to an overhang perimeter."
+        " Only the section that runs alongside the overhang is converted, the rest of that perimeter is left untouched."
+        "\nThis gives the overhang speed, fan and flow to the wall that supports the overhang, without having to slow down"
+        " every internal perimeter of the object or to set up height range modifiers by hand."
+        "\nNeeds an overhang threshold to be set to have any effect.");
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("overhangs_reverse", coBool);
     def->label = L("Reverse on odd");
     def->full_label = L("Overhang reversal");
@@ -7669,6 +7681,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "over_bridge_flow_ratio",
 "overhangs_acceleration",
 "overhangs_reverse_threshold",
+"overhangs_next_perimeter",
 "overhangs_reverse",
 "overhangs_speed",
 "overhangs_speed_enforce",

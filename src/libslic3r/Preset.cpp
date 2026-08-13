@@ -473,6 +473,7 @@ static std::vector<std::string> s_Preset_print_options {
         "overhangs_speed_enforce",
         "overhangs_width",
         "overhangs_width_speed", 
+        "overhangs_next_perimeter",
         "overhangs_reverse",
         "overhangs_reverse_threshold",
         "seam_position",

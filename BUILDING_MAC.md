@@ -74,6 +74,27 @@ build/src/superslicer --export-gcode part.stl --output part.gcode
 
 Incremental rebuilds after code changes take a couple of minutes at most.
 
+## 4. After editing anything under `resources/`
+
+Building does **not** refresh the runtime resources, so a new setting added to
+`resources/ui_layout/**/*.ui` compiles fine but never shows up in the GUI. Sync
+them by hand after every change:
+
+```sh
+rsync -a --exclude 'resources/' resources/ build/resources/
+```
+
+Then restart the slicer. C++ changes are unaffected — this only concerns
+`resources/`.
+
+Why two steps are needed: the binary resolves its resources as
+`<binary dir>/../resources`, i.e. `build/resources`, which is only populated by
+the `install` step and not by an ordinary build. At startup the app then copies
+`build/resources/ui_layout/` into `~/Library/Application Support/SuperSlicer/ui_layout/`
+and reads the layout from there, re-copying a file only when its `build/resources`
+copy is newer (`AppConfig.cpp`, `get_ui_layouts`). The `rsync` above refreshes the
+mtimes, so that second copy happens on the next launch.
+
 ## CLion setup
 
 Open the repo root as a CMake project. In *Settings → Build, Execution,
@@ -93,6 +114,8 @@ for the app — the deps must already be built via step 2.
   running CMake 4 — put a CMake 3.x first in `PATH` (see prerequisites).
 - **Linker can't find `libwx_osx_cocoau_scintilla`**: you skipped the `cp`
   at the end of step 2.
+- **A new setting is missing from the GUI although it compiled**: you skipped
+  step 4, or you did not restart the slicer afterwards.
 - **A dependency fails to compile with a brand-new Xcode**: extend that
   dependency's patch file in `deps/<Name>/` (see `deps/PNG/PNG.patch` for the
   pattern) — recipes apply patches with `git apply` right after download.

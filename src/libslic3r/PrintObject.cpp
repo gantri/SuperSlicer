@@ -811,6 +811,7 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "only_one_perimeter_top_other_algo"
                 || opt_key == "overhangs_width_speed"
                 || opt_key == "overhangs_width"
+                || opt_key == "overhangs_next_perimeter"
                 || opt_key == "overhangs_reverse"
                 || opt_key == "overhangs_reverse_threshold"
                 || opt_key == "perimeter_extrusion_spacing"
