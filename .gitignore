@@ -26,3 +26,4 @@ deps/deps-*
 # IDE / generated
 .idea/
 cmake/CPackConfig.cmake
+.atl

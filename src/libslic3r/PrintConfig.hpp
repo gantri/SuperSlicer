@@ -885,6 +885,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionInt,                  overhangs_speed_enforce))
     ((ConfigOptionFloatOrPercent,       overhangs_width))
     ((ConfigOptionFloatOrPercent,       overhangs_width_speed))
+    ((ConfigOptionBool,                 overhangs_next_perimeter))
     ((ConfigOptionBool,                 overhangs_reverse))
     ((ConfigOptionFloatOrPercent,       overhangs_reverse_threshold))
     ((ConfigOptionEnum<NoPerimeterUnsupportedAlgo>,  no_perimeter_unsupported_algo))

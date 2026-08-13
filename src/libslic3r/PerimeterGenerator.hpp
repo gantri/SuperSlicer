@@ -139,6 +139,20 @@ private:
     ClipperLib_Z::Paths _lower_slices_bridge_speed_small_clipperpaths;
     ClipperLib_Z::Paths _lower_slices_bridge_speed_big_clipperpaths;
 
+    // Same regions as above, but pulled inwards by the distance between the external perimeter and
+    // the perimeter next to it, so that the perimeter running alongside an overhang is detected as
+    // an overhang too (overhangs_next_perimeter). Only filled when that setting is enabled.
+    bool        _overhangs_next_perimeter = false;
+    Polygons    _lower_slices_bridge_flow_small_next;
+    Polygons    _lower_slices_bridge_flow_big_next;
+    Polygons    _lower_slices_bridge_speed_small_next;
+    Polygons    _lower_slices_bridge_speed_big_next;
+
+    ClipperLib_Z::Paths _lower_slices_bridge_flow_small_next_clipperpaths;
+    ClipperLib_Z::Paths _lower_slices_bridge_flow_big_next_clipperpaths;
+    ClipperLib_Z::Paths _lower_slices_bridge_speed_small_next_clipperpaths;
+    ClipperLib_Z::Paths _lower_slices_bridge_speed_big_next_clipperpaths;
+
     //process data
     coord_t perimeter_width; coord_t get_perimeter_width() { return perimeter_width; }
     coord_t perimeter_spacing; coord_t get_perimeter_spacing() { return perimeter_spacing; }
@@ -158,8 +172,8 @@ private:
     ProcessSurfaceResult process_arachne(int& loop_number, const Surface& surface);
     
     void        processs_no_bridge(Surfaces& all_surfaces);
-    ExtrusionPaths create_overhangs(const Polyline& loop_polygons, ExtrusionRole role, bool is_external) const;
-    ExtrusionPaths create_overhangs(const ClipperLib_Z::Path& loop_polygons, ExtrusionRole role, bool is_external) const;
+    ExtrusionPaths create_overhangs(const Polyline& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external = false) const;
+    ExtrusionPaths create_overhangs(const ClipperLib_Z::Path& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external = false) const;
 
     // transform loops into ExtrusionEntityCollection, adding also thin walls into it.
     ExtrusionEntityCollection _traverse_loops(const PerimeterGeneratorLoops &loops, ThickPolylines &thin_walls, int count_since_overhang = 0) const;
