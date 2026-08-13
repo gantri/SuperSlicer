@@ -47,6 +47,20 @@ endif()
 
 message(STATUS "Deduced boost toolset: ${_boost_toolset} based on ${CMAKE_CXX_COMPILER_ID} compiler")
 
+if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    # bootstrap.bat builds the b2 engine through `call .\build.bat`, with no arguments, so
+    # build.bat guesses the compiler with vswhere. Boost.Build 4.3 only knows up to Visual
+    # Studio 2019: on a newer one the guess resolves to "vcunk", which its own
+    # config_toolset.bat declares but never dispatches, and the engine build dies with
+    # "Unknown toolset: vcunk". Naming the toolset in that one call skips the guess.
+    #
+    # It is named there and not as a bootstrap.bat argument on purpose: an argument would
+    # also pin project-config.jam to `using msvc : 14.2 ;`, while leaving it alone keeps the
+    # plain `using msvc ;` this build has always used, which takes the compiler from the
+    # environment it runs in.
+    set(_patch_command ${_patch_command} && ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_LIST_DIR}/patch-bootstrap-msvc.cmake)
+endif ()
+
 set(_libs "")
 foreach(_comp ${DEP_Boost_COMPONENTS})
     list(APPEND _libs "--with-${_comp}")
