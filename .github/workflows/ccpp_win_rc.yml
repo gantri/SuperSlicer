@@ -16,6 +16,13 @@ jobs:
     - uses: ilammy/msvc-dev-cmd@v1
       with:
         toolset: '14.29'
+    - name: deps cache key
+      # The tree hash of deps/ as committed. hashFiles cannot be used here: the cache
+      # re-evaluates its key on the post step, by which point deps/ also holds the build
+      # tree with every dependency source unpacked, and walking it times out.
+      id: deps_key
+      shell: bash
+      run: echo "sha=$(git rev-parse HEAD:deps)" >> $GITHUB_OUTPUT
     - name: cache deps
       # Rebuilt only when a dependency recipe or patch changes. Everything the build
       # consumes lives in destdir, so a hit skips ~40 minutes of compiling.
@@ -23,7 +30,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ./deps/build/destdir
-        key: deps-win-x64-v142-${{ hashFiles('deps/**') }}
+        key: deps-win-x64-v142-${{ steps.deps_key.outputs.sha }}
     - name: mkdir in deps
       if: steps.cache_deps.outputs.cache-hit != 'true'
       run: mkdir deps/build
