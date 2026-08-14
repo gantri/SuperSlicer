@@ -1,9 +1,8 @@
 name: C/C++ Nightly windows x64
 
+# A merge into gantri-main is handled by release.yml, which builds once and publishes.
+# This one stays for building any branch on demand, without releasing anything.
 on:
-  push:
-    branches:
-      - gantri-main
   workflow_dispatch:
 
 jobs:
