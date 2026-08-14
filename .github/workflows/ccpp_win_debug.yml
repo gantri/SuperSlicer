@@ -61,13 +61,20 @@ jobs:
       # windows-2022, and the .mo target calls msgfmt by name from PATH.
       shell: powershell
       run: |
-        choco install gettext -y --no-progress
-        # The installer edits the machine PATH, but this job captured its own at start,
-        # so the later msbuild steps would still not see msgfmt. Publish it explicitly and
-        # fail here, not fifteen minutes into the build, if it is not where we expect.
-        $exe = Get-ChildItem -Path 'C:\Program Files\gettext-iconv' -Filter msgfmt.exe -Recurse |
-               Select-Object -First 1
-        if (-not $exe) { throw 'msgfmt.exe not found after installing gettext' }
+        $ErrorActionPreference = 'Stop'
+        # Taken straight from the upstream release rather than through Chocolatey, whose
+        # feed answers 504 often enough to break a build for reasons of its own.
+        $url = 'https://github.com/mlocati/gettext-iconv-windows/releases/download/v1.0-v1.19/gettext1.0-iconv1.19-static-64.zip'
+        $zip = Join-Path $env:RUNNER_TEMP 'gettext.zip'
+        $dir = Join-Path $env:RUNNER_TEMP 'gettext'
+        Invoke-WebRequest -Uri $url -OutFile $zip
+        Expand-Archive -Path $zip -DestinationPath $dir -Force
+        # Searched inside our own extraction directory only: walking Program Files trips
+        # over system folders the runner may not read.
+        $exe = Get-ChildItem -Path $dir -Filter msgfmt.exe -Recurse | Select-Object -First 1
+        if (-not $exe) { throw 'msgfmt.exe not found in the gettext archive' }
+        # The job captured its PATH at start, so a later msbuild step only sees what is
+        # published here. Running msgfmt now fails at minute one, not fifteen minutes in.
         Add-Content -Path $env:GITHUB_PATH -Value $exe.DirectoryName
         & $exe.FullName --version
     - name: update submodule profiles
@@ -112,8 +119,10 @@ jobs:
       run: '(new-object System.Net.WebClient).DownloadFile("https://github.com/supermerill/SuperSlicer_deps/releases/download/1.75/Slic3r_win_build.zip", "Slic3r_win_build.zip")'
     - name: unzip
       working-directory: ./build
-      shell: cmd
-      run: '"C:/Program Files/7-Zip/7z.exe" x Slic3r_win_build.zip'
+      shell: powershell
+      # Expand-Archive rather than 7-Zip: the runner image ships 7-Zip but documents no
+      # install path, and this needs none. The archive holds a Slic3r_win_build folder.
+      run: Expand-Archive -Path Slic3r_win_build.zip -DestinationPath . -Force
     - name: copy missing dll content from old release
       working-directory: ./build
       shell: cmd
