@@ -58,7 +58,17 @@ jobs:
     - name: install gettext
       # msgfmt and xgettext came preinstalled on the windows-2019 image; they do not on
       # windows-2022, and the .mo/.pot targets call them by name from PATH.
-      run: choco install gettext -y --no-progress
+      shell: powershell
+      run: |
+        choco install gettext -y --no-progress
+        # The installer edits the machine PATH, but this job captured its own at start,
+        # so the later msbuild steps would still not see msgfmt. Publish it explicitly and
+        # fail here, not fifteen minutes into the build, if it is not where we expect.
+        $exe = Get-ChildItem -Path 'C:\Program Files\gettext-iconv' -Filter msgfmt.exe -Recurse |
+               Select-Object -First 1
+        if (-not $exe) { throw 'msgfmt.exe not found after installing gettext' }
+        Add-Content -Path $env:GITHUB_PATH -Value $exe.DirectoryName
+        & $exe.FullName --version
     - name: update submodule profiles
       working-directory: ./resources/profiles
       run: git submodule update --init
