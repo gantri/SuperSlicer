@@ -1,17 +1,20 @@
 name: Release windows x64
 
-# Publishes a release from a tag, e.g. `gantri-v1.0.0`.
-# The tag only names the Gantri fork: the SuperSlicer version stays pinned to the one
-# in version.inc, and the fork version goes into the build id suffix, so the About
-# dialog reads `SuperSlicer_2.5.59.2+gantri.1.0.0`.
+# Every merge into gantri-main builds Windows once and publishes a release from it,
+# tag included: the version is the next patch after the newest gantri-v* tag, and
+# `gh release create` creates that tag on the merge commit.
 #
-# Running this manually (workflow_dispatch) builds and uploads the artifact but does
-# not publish anything, which is the way to rehearse a release before tagging.
+# The version names the Gantri fork only. The SuperSlicer version stays pinned to the
+# one in version.inc and the fork version goes into the build id suffix, so the About
+# dialog reads `SuperSlicer_2.5.59.2+gantri.1.0.1`.
+#
+# Running this by hand (workflow_dispatch) builds and uploads the artifact without
+# tagging or publishing anything, which is how to rehearse the whole thing.
 
 on:
   push:
-    tags:
-      - 'gantri-v*'
+    branches:
+      - gantri-main
   workflow_dispatch:
 
 jobs:
@@ -53,6 +56,8 @@ jobs:
         name: deps_win
         path: ./deps/build/destdir/
         include-hidden-files: true
+        # Plumbing to hand the deps to the build job, not something anyone downloads.
+        retention-days: 1
 
   build:
     runs-on: windows-2022
@@ -62,6 +67,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        # Tags are needed to work out the next version.
+        fetch-depth: 0
     - uses: ilammy/msvc-dev-cmd@v1
       with:
         toolset: '14.29'
@@ -89,13 +97,23 @@ jobs:
     - name: update submodule profiles
       working-directory: ./resources/profiles
       run: git submodule update --init
-    - name: resolve version from the tag
+    - name: resolve version
       shell: powershell
       run: |
-        if ($env:GITHUB_REF -like 'refs/tags/*') {
-          $ver = $env:GITHUB_REF_NAME -replace '^gantri-v', ''
-        } else {
+        $ErrorActionPreference = 'Stop'
+        if ($env:GITHUB_EVENT_NAME -ne 'push') {
+          # Rehearsal run: never claims a version number a real release could want.
           $ver = "dev." + $env:GITHUB_SHA.Substring(0, 7)
+        } else {
+          $last = git tag -l 'gantri-v*' |
+                  Sort-Object { [version]($_ -replace '^gantri-v', '') } |
+                  Select-Object -Last 1
+          if ($last) {
+            $v = [version]($last -replace '^gantri-v', '')
+            $ver = "$($v.Major).$($v.Minor).$($v.Build + 1)"
+          } else {
+            $ver = '1.0.0'
+          }
         }
         Write-Host "Gantri version: $ver"
         Add-Content -Path $env:GITHUB_ENV -Value "GANTRI_VERSION=$ver"
@@ -164,17 +182,23 @@ jobs:
       shell: powershell
       run: Compress-Archive -Path .\package\* -DestinationPath "..\SuperSlicer_Gantri_${env:GANTRI_VERSION}_win64.zip" -Force
     - name: Upload artifact
+      # Only on rehearsal runs, which publish nothing. On a real release the zip attached
+      # to it is the single download, so the same files are not offered twice.
+      if: github.event_name != 'push'
       uses: actions/upload-artifact@v4
       with:
         name: SuperSlicer_Gantri_${{ env.GANTRI_VERSION }}_win64
         path: build/package/
-    - name: publish release
-      if: startsWith(github.ref, 'refs/tags/')
+    - name: tag and publish release
+      # Creates the tag on this commit as part of publishing, so a merge needs no manual
+      # tagging and never triggers a second build.
+      if: github.event_name == 'push'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        gh release create "$GITHUB_REF_NAME" \
+        gh release create "gantri-v${GANTRI_VERSION}" \
+          --target "$GITHUB_SHA" \
           --title "SuperSlicer Gantri $GANTRI_VERSION" \
           --generate-notes \
           "SuperSlicer_Gantri_${GANTRI_VERSION}_win64.zip"
