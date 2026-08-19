@@ -838,6 +838,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionPercent,              fill_top_flow_ratio))
     ((ConfigOptionPercent,              fill_smooth_distribution))
     ((ConfigOptionFloatOrPercent,       fill_smooth_width))
+    ((ConfigOptionFloatOrPercent,       gap_fill_combine_below))
     ((ConfigOptionBool,                 gap_fill_enabled))
     ((ConfigOptionFloatOrPercent,       gap_fill_extension))
     ((ConfigOptionPercent,              gap_fill_flow_match_perimeter))

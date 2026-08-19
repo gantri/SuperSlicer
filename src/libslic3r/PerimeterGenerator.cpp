@@ -1401,6 +1401,121 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& loop_number, const
             }
         }
 
+        // combine too-thin gapfill with the perimeter next to it (gap_fill_combine_below)
+        // mirror of the block above: instead of extracting an extra perimeter out of a wide
+        // gap, the perimeter bordering a too-thin gap is absorbed into it, so one gapfill
+        // line is printed where a full perimeter plus a skinny line would have been.
+        const coordf_t combine_below = scale_d(this->config->gap_fill_combine_below.get_abs_value(unscaled((double)perimeter_width)));
+        if (combine_below > 0 && this->config->gap_fill_enabled.value && !gaps.empty()) {
+            // parts of the gaps thinner than the threshold
+            ExPolygons thick_parts = offset2_ex(gaps, -combine_below / 2, combine_below / 2);
+            ExPolygons thin_gaps = thick_parts.empty() ? gaps : diff_ex(gaps, thick_parts, ApplySafetyOffset::Yes);
+            // only a gap that would actually print a line today may trigger a combine: use the
+            // same lower bound the gapfill generator applies further down. Hairline slivers
+            // below it are dropped silently and squeezed shut by the neighbouring extrusions,
+            // and they show up between most perimeter pairs, so absorbing a perimeter for each
+            // of them would convert most of the wall into gapfill.
+            coordf_t printable_min = 0.2 * perimeter_width * (1 - INSET_OVERLAP_TOLERANCE);
+            printable_min = std::max(printable_min, double(Flow::new_from_spacing((float)EPSILON, (float)this->perimeter_flow.nozzle_diameter(), (float)this->layer->height, (float)this->perimeter_flow.spacing_ratio(), false).scaled_width()));
+            {
+                const coordf_t configured_min = scale_d(this->config->gap_fill_min_width.get_abs_value(unscaled((double)perimeter_width)));
+                if (configured_min > 0)
+                    printable_min = std::max(printable_min, configured_min);
+            }
+            thin_gaps = offset2_ex(thin_gaps, -printable_min / 2, printable_min / 2);
+            // don't absorb a whole perimeter stretch for a sliver that can't fit any line anyway
+            thin_gaps.erase(std::remove_if(thin_gaps.begin(), thin_gaps.end(),
+                [this](const ExPolygon &expoly) { return expoly.area() < double(perimeter_width) * double(perimeter_width); }),
+                thin_gaps.end());
+            if (!thin_gaps.empty()) {
+                struct CombineTarget { size_t depth; bool is_hole; size_t index; Polygons cut_zones; };
+                std::vector<CombineTarget> targets;
+                // a closed wall has the thin gap bordered by a perimeter on EACH side; absorb
+                // only one of them, or the merged line ends up ~250% wide instead of <=150%.
+                // pick the deepest bordering loop, breaking ties with the shortest centerline,
+                // and never the external perimeter (depth 0), which defines surface quality.
+                for (const ExPolygon &thin_gap : thin_gaps) {
+                    // the centerline of the bordering perimeter runs half a width away from the
+                    // gap edge; growing by that (plus slack) covers the stretch to absorb.
+                    Polygons cut_zone = to_polygons(offset_ex(ExPolygons{ thin_gap }, double(perimeter_width) * 0.75));
+                    size_t best_depth = 0; bool best_is_hole = false; size_t best_index = 0;
+                    coordf_t best_length = 0.; bool found = false;
+                    for (size_t d = 1; d < contours.size(); ++d) {
+                        for (int side = 0; side < 2; ++side) {
+                            const PerimeterGeneratorLoops &loops_d = side == 0 ? contours[d] : holes[d];
+                            for (size_t idx = 0; idx < loops_d.size(); ++idx) {
+                                Polylines ring; ring.emplace_back(loops_d[idx].polygon.split_at_first_point());
+                                if (intersection_pl(ring, cut_zone).empty())
+                                    continue;
+                                const coordf_t len = loops_d[idx].polygon.length();
+                                if (!found || d > best_depth || (d == best_depth && len < best_length)) {
+                                    found = true; best_depth = d; best_is_hole = (side == 1); best_index = idx; best_length = len;
+                                }
+                            }
+                        }
+                    }
+                    if (!found)
+                        continue;
+                    // several thin gaps may pick the same loop: accumulate their cut zones
+                    bool merged_into_existing = false;
+                    for (CombineTarget &target : targets)
+                        if (target.depth == best_depth && target.is_hole == best_is_hole && target.index == best_index) {
+                            append(target.cut_zones, cut_zone);
+                            merged_into_existing = true;
+                            break;
+                        }
+                    if (!merged_into_existing)
+                        targets.push_back(CombineTarget{ best_depth, best_is_hole, best_index, std::move(cut_zone) });
+                }
+                // convert the chosen stretches: erase the loop, keep the surviving stretches as
+                // constant-width thin walls, hand the absorbed footprint over to the gapfill.
+                ExPolygons absorbed;
+                for (const CombineTarget &target : targets) {
+                    const Polygon &poly = (target.is_hole ? holes : contours)[target.depth][target.index].polygon;
+                    // footprint of this perimeter's extrusion
+                    Polygon ccw_poly = poly;
+                    ccw_poly.make_counter_clockwise();
+                    const Polygons band = diff(offset(ccw_poly, double(perimeter_width) / 2),
+                                               offset(ccw_poly, -double(perimeter_width) / 2));
+                    Polylines ring; ring.emplace_back(poly.split_at_first_point());
+                    Polylines remains = diff_pl(ring, target.cut_zones);
+                    for (size_t j = 0; j < remains.size(); ++j)
+                        if (remains[j].length() < double(perimeter_width) * 2) {
+                            // too short to print on its own: absorb its footprint as well
+                            append(absorbed, union_ex(offset(remains[j], double(perimeter_width) / 2)));
+                            remains.erase(remains.begin() + j);
+                            --j;
+                        }
+                    if (remains.empty()) {
+                        // the whole loop got absorbed
+                        append(absorbed, union_ex(band));
+                    } else {
+                        append(absorbed, intersection_ex(band, target.cut_zones));
+                        for (Polyline &pl : remains) {
+                            ThickPolyline thick;
+                            thick.points = std::move(pl.points);
+                            thick.points_width.assign(thick.points.size(), perimeter_width);
+                            thick.endpoints = std::make_pair(true, true);
+                            thin_walls_thickpolys.push_back(std::move(thick));
+                        }
+                    }
+                }
+                // erase the converted loops, per container, deepest index first
+                std::sort(targets.begin(), targets.end(), [](const CombineTarget &a, const CombineTarget &b) { return a.index > b.index; });
+                for (const CombineTarget &target : targets) {
+                    PerimeterGeneratorLoops &loops_d = (target.is_hole ? holes : contours)[target.depth];
+                    loops_d.erase(loops_d.begin() + target.index);
+                }
+                if (!absorbed.empty()) {
+                    // the absorbed band overlaps the gap it borders (both derive from the same
+                    // centerline), so a plain union welds them into one region
+                    Polygons welded = to_polygons(gaps);
+                    append(welded, to_polygons(absorbed));
+                    gaps = union_ex(welded);
+                }
+            }
+        }
+
         // nest loops: holes first
         for (int d = 0; d <= loop_number; ++d) {
             PerimeterGeneratorLoops& holes_d = holes[d];

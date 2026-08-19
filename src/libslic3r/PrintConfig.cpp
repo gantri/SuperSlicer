@@ -2691,6 +2691,20 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("gap_fill_combine_below", coFloatOrPercent);
+    def->label = L("Combine with perimeter below");
+    def->full_label = L("Gapfill: combine with perimeter below");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("When a gap fill line would be thinner than this threshold, it isn't printed as a skinny line:"
+        " the perimeter next to it is absorbed into the gap fill instead, and one thicker gap fill line is printed"
+        " in place of both.\nWith a value of 50%, every gap fill line ends up between 50% and 150% of the perimeter"
+        " width instead of tapering down to nothing.\nCan be a % of the perimeter width.\n0 to disable.");
+    def->ratio_over = "perimeter_width";
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 0, false });
+
     def = this->add("gap_fill_max_width", coFloatOrPercent);
     def->label = L("Max width");
     def->full_label = L("Gapfill: Max width");
@@ -7636,6 +7650,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "first_layer_min_speed",
 "first_layer_size_compensation_layers",
 "gap_fill_acceleration",
+"gap_fill_combine_below",
 "gap_fill_extension",
 "gap_fill_flow_match_perimeter",
 "gap_fill_last",

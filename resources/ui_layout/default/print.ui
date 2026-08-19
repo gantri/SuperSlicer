@@ -74,6 +74,7 @@ group:sidetext_width$5:Advanced
 	line:Gap Fill threshold
 		setting:width$5:gap_fill_min_width
 		setting:width$5:gap_fill_max_width
+		setting:width$5:gap_fill_combine_below
 		setting:width$5:sidetext_width$6:gap_fill_min_area
 		setting:width$5:gap_fill_min_length
 	end_line

@@ -802,6 +802,7 @@ bool PrintObject::invalidate_state_by_config_options(
                 opt_key == "gap_fill_enabled"
                 || opt_key == "gap_fill_extension"
                 || opt_key == "gap_fill_last"
+                || opt_key == "gap_fill_combine_below"
                 || opt_key == "gap_fill_max_width"
                 || opt_key == "gap_fill_min_area"
                 || opt_key == "gap_fill_min_length"

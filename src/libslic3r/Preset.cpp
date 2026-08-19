@@ -543,6 +543,7 @@ static std::vector<std::string> s_Preset_print_options {
         "gap_fill_extension",
         "gap_fill_flow_match_perimeter",
         "gap_fill_last",
+        "gap_fill_combine_below",
         "gap_fill_max_width",
         "gap_fill_min_area",
         "gap_fill_min_length",
