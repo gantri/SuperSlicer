@@ -190,6 +190,7 @@ void Layer::make_perimeters()
                 && config.gap_fill_min_area         == other_config.gap_fill_min_area
                 && config.gap_fill_min_length         == other_config.gap_fill_min_length
                 && config.gap_fill_min_width         == other_config.gap_fill_min_width
+                && config.gap_fill_split_above == other_config.gap_fill_split_above
                 && config.gap_fill_target_width == other_config.gap_fill_target_width
                 && config.gap_fill_target_external_width_min == other_config.gap_fill_target_external_width_min
                 && config.gap_fill_target_external_width_max == other_config.gap_fill_target_external_width_max

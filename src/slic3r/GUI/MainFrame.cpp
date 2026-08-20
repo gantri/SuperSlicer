@@ -964,16 +964,7 @@ void MainFrame::update_title()
         }
     }
 
-    // Show which Gantri build this is. The release workflow stamps the fork version into
-    // the build id as "+gantri.X.Y.Z"; SLIC3R_VERSION is the upstream SuperSlicer version
-    // and says nothing about it. Builds made outside that workflow carry no stamp and
-    // fall back to the full base version.
-    std::string build_id = wxGetApp().is_editor() ? SLIC3R_BUILD_ID : GCODEVIEWER_BUILD_ID;
-    static const std::string gantri_marker = "+gantri.";
-    size_t      idx_gantri = build_id.find(gantri_marker);
-    wxString    version = (idx_gantri == std::string::npos)
-        ? wxString(SLIC3R_VERSION_FULL)
-        : wxString::FromUTF8(build_id.substr(idx_gantri + gantri_marker.size()).c_str());
+    wxString version = wxGetApp().display_version();
 #if defined(_WIN32) && ! defined(_WIN64)
     // People are using 32bit slicer on a 64bit machine by mistake. Make it explicit.
     version += " 32 bit";

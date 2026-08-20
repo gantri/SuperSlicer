@@ -2691,6 +2691,20 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("gap_fill_split_above", coFloatOrPercent);
+    def->label = L("Split above");
+    def->full_label = L("Gapfill: split into two lines above");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("A gap fill line wider than this is printed as two parallel lines instead of one wide line."
+        "\nLets a wall lose lines one at a time as it gets thinner (7, then 6, then 5) instead of two at a time,"
+        " since perimeters always come in pairs."
+        "\nCan be a % of the perimeter width.\n0 to disable.");
+    def->ratio_over = "perimeter_width";
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 0, false });
+
     def = this->add("gap_fill_target_width", coFloatOrPercent);
     def->label = L("Ideal gap fill width");
     def->full_label = L("Gapfill: ideal width");
@@ -2698,7 +2712,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("On layers that are a thin wall (some perimeters and one gap fill line in the middle),"
         " nudge the external and internal perimeter widths, inside their allowed ranges below, so that"
         " the middle gap fill line comes out as close as possible to this width."
-        "\nCan be a % of the nozzle diameter.\n0 to disable.");
+                "\nCan be a % of the nozzle diameter.\n0 to disable.");
     def->ratio_over = "nozzle_diameter";
     def->sidetext = L("mm or %");
     def->min = 0;
@@ -7722,6 +7736,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "gap_fill_min_length",
 "gap_fill_min_width",
 "gap_fill_overlap",
+"gap_fill_split_above",
 "gap_fill_target_width",
 "gap_fill_target_external_width_min",
 "gap_fill_target_external_width_max",

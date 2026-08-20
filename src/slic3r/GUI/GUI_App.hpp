@@ -176,6 +176,9 @@ public:
     bool is_gcode_viewer() const { return m_app_mode == EAppMode::GCodeViewer; }
     bool is_recreating_gui() const { return m_is_recreating_gui; }
     std::string logo_name() const { return is_editor() ? SLIC3R_APP_KEY : GCODEVIEWER_APP_KEY; }
+    // The version shown to the user (title bar, splash screen): the Gantri fork version
+    // stamped into the build id by the release workflow, or the base version otherwise.
+    wxString    display_version() const;
 
     //AngelScript::asIScriptEngine* get_script_engine() const { return m_script_engine.get(); }
 

@@ -4,6 +4,7 @@
 #include "ClipperUtils.hpp"
 #include "ExtrusionEntityCollection.hpp"
 #include "Geometry.hpp"
+#include "Print.hpp"
 #include "ShortestPath.hpp"
 
 #include "Arachne/WallToolPaths.hpp"
@@ -386,11 +387,35 @@ void PerimeterGenerator::adjust_flows_to_gap_fill_target()
     if (ext_min <= 0 || peri_min <= 0 || ext_max < ext_min || peri_max < peri_min)
         return;
 
+    // a width set by hand in a height-range or part modifier is the user's call: leave it
+    // alone and only move the other one. "Set by hand" = differs from what the print
+    // profile, or the object's own settings, would give this region.
+    auto width_is_pinned = [this](const char *width_key, const char *spacing_key) -> bool {
+        const PrintObject *object = this->layer->object();
+        if (object == nullptr)
+            return false;
+        const DynamicPrintConfig &object_cfg = object->model_object()->config.get();
+        const PrintRegionConfig  &print_cfg  = object->print()->default_region_config();
+        for (const char *key : { width_key, spacing_key }) {
+            const ConfigOption *region_opt = this->config->option(key);
+            const ConfigOption *base_opt   = object_cfg.option(key);
+            if (base_opt == nullptr)
+                base_opt = print_cfg.option(key);
+            if (region_opt != nullptr && base_opt != nullptr && !(*region_opt == *base_opt))
+                return true;
+        }
+        return false;
+    };
+    const bool ext_pinned  = width_is_pinned("external_perimeter_extrusion_width", "external_perimeter_extrusion_spacing");
+    const bool peri_pinned = width_is_pinned("perimeter_extrusion_width", "perimeter_extrusion_spacing");
+    if (ext_pinned && peri_pinned)
+        return;
+
     // wall thickness of this layer: 2*area/boundary_length is the width of a long thin
     // region (exact for a strip or an annulus). Length-weighted median over the islands,
     // so a stray blob doesn't skew a shell layer.
     std::vector<std::pair<double, double>> thickness_weight;
-    double total_weight = 0;
+    double total_weight = 0, ring_weight = 0;
     for (const Surface &surface : this->slices->surfaces) {
         double boundary = unscaled(surface.expolygon.contour.length());
         for (const Polygon &hole : surface.expolygon.holes)
@@ -400,6 +425,8 @@ void PerimeterGenerator::adjust_flows_to_gap_fill_target()
         const double area = unscaled(unscaled(surface.expolygon.area()));
         thickness_weight.emplace_back(2 * area / boundary, boundary);
         total_weight += boundary;
+        if (!surface.expolygon.holes.empty())
+            ring_weight += boundary;
     }
     if (thickness_weight.empty())
         return;
@@ -410,6 +437,11 @@ void PerimeterGenerator::adjust_flows_to_gap_fill_target()
         acc += tw.second;
         if (acc >= total_weight / 2) { wall_width = tw.first; break; }
     }
+    // a loop around an open strip covers both sides of the wall; around a ring (island with
+    // a hole) the innermost loops are two separate rings, one per side. It decides how much
+    // the gap grows when gap_fill_combine_below absorbs the innermost loop.
+    const int lines_per_absorbed_loop = (ring_weight > total_weight / 2) ? 1 : 2;
+    const double combine_below = this->config->gap_fill_combine_below.get_abs_value(this->perimeter_flow.width());
 
     const float layer_height = (float)this->layer->height;
     const float ext_ratio  = this->ext_perimeter_flow.spacing_ratio();
@@ -437,22 +469,36 @@ void PerimeterGenerator::adjust_flows_to_gap_fill_target()
             --n;
         // the printed line comes out one overlap wider than the area between the
         // spacing edges (measured: +0.05mm on 0.45/0.2 lines), account for it
-        return wall_width - 2. * side_of(ext, peri, n) + (peri.width() - peri.spacing());
+        double gap = wall_width - 2. * side_of(ext, peri, n) + (peri.width() - peri.spacing());
+        // gap_fill_combine_below then absorbs the innermost loop into a too-thin gap: model
+        // it, or the solver keeps picking widths whose outcome it doesn't see.
+        if (combine_below > 0 && n > 1 && gap > 0 && gap < combine_below)
+            gap += lines_per_absorbed_loop * peri.spacing();
+        return gap;
     };
 
     const double ext_nominal  = this->ext_perimeter_flow.width();
     const double peri_nominal = this->perimeter_flow.width();
+    // with gap splitting on, a gap wider than the threshold prints as two lines: judge the
+    // width each of those would get, so "one loop less and two lines" can win over
+    // squeezing every perimeter to its minimum to keep the loop count.
+    const double split_above = this->config->gap_fill_split_above.get_abs_value(peri_nominal);
+    auto line_width = [&](double gap) -> double {
+        return (split_above > 0 && gap >= split_above) ? gap / 2. : gap;
+    };
     const double nominal_gap = gap_left(ext_nominal, peri_nominal);
     const double step = 0.0025; // mm
     double best_ext = ext_nominal, best_peri = peri_nominal;
-    double best_score = nominal_gap > 0 ? std::abs(nominal_gap - target) : std::numeric_limits<double>::max();
-    for (double ext_w = ext_min; ext_w <= ext_max + EPSILON; ext_w += step)
-        for (double peri_w = peri_min; peri_w <= peri_max + EPSILON; peri_w += step) {
+    double best_score = nominal_gap > 0 ? std::abs(line_width(nominal_gap) - target) : std::numeric_limits<double>::max();
+    const double ext_lo  = ext_pinned  ? ext_nominal  : ext_min,  ext_hi  = ext_pinned  ? ext_nominal  : ext_max;
+    const double peri_lo = peri_pinned ? peri_nominal : peri_min, peri_hi = peri_pinned ? peri_nominal : peri_max;
+    for (double ext_w = ext_lo; ext_w <= ext_hi + EPSILON; ext_w += step)
+        for (double peri_w = peri_lo; peri_w <= peri_hi + EPSILON; peri_w += step) {
             const double gap = gap_left(ext_w, peri_w);
             if (gap <= 0)
                 continue;
             // tiny pull towards the configured widths, so ties don't drift for nothing
-            const double score = std::abs(gap - target)
+            const double score = std::abs(line_width(gap) - target)
                 + 0.01 * std::abs(ext_w - ext_nominal)
                 + 0.01 * std::abs(peri_w - peri_nominal);
             if (score < best_score) { best_score = score; best_ext = ext_w; best_peri = peri_w; }
@@ -1040,6 +1086,10 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& loop_number, const
         std::vector<PerimeterGeneratorLoops> contours(loop_number + 1);    // depth => loops
         std::vector<PerimeterGeneratorLoops> holes(loop_number + 1);       // depth => loops
         ThickPolylines thin_walls_thickpolys;
+        // stretches of a perimeter that survive a gap_fill_combine_below absorption. Kept
+        // apart from the thin walls: those may go through thin-wall merging, which is not
+        // meant for constant-width perimeter pieces and mangles them.
+        ThickPolylines combine_remnants;
         ExPolygons no_last_gapfill;
         // we loop one time more than needed in order to find gaps after the last perimeter was applied
         for (int perimeter_idx = 0;; ++perimeter_idx) {  // outer loop is 0
@@ -1598,7 +1648,7 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& loop_number, const
                             thick.points = std::move(pl.points);
                             thick.points_width.assign(thick.points.size(), perimeter_width);
                             thick.endpoints = std::make_pair(true, true);
-                            thin_walls_thickpolys.push_back(std::move(thick));
+                            combine_remnants.push_back(std::move(thick));
                         }
                     }
                 }
@@ -1705,6 +1755,15 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& loop_number, const
             } else {
                 peri_entities = this->_traverse_loops(contours.front(), thin_walls_thickpolys);
             }
+        }
+        // the surviving stretches print as plain perimeter pieces, at perimeter width
+        if (!combine_remnants.empty()) {
+            peri_entities.append(Geometry::thin_variable_width(
+                combine_remnants,
+                erPerimeter,
+                this->perimeter_flow,
+                std::max(perimeter_width / 4, scale_t(this->print_config->resolution))));
+            combine_remnants.clear();
         }
 #if _DEBUG
         peri_entities.visit(LoopAssertVisitor{});
@@ -1873,8 +1932,8 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& loop_number, const
         }
         // create lines from the area
         ThickPolylines polylines;
-        for (const ExPolygon& ex : gaps_ex) {
-            Geometry::MedialAxis md{ ex, coord_t(real_max), coord_t(min), coord_t(this->layer->height) };
+        auto build_lines = [&](const ExPolygon &area, ThickPolylines &out) {
+            Geometry::MedialAxis md{ area, coord_t(real_max), coord_t(min), coord_t(this->layer->height) };
             if (minlength > 0) {
                 md.set_min_length(minlength);
             }
@@ -1882,7 +1941,54 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& loop_number, const
                 md.set_extension_length(gapfill_extension);
             }
             md.set_biggest_width(max);
-            md.build(polylines);
+            md.build(out);
+        };
+        const coordf_t split_above   = scale_d(this->config->gap_fill_split_above.get_abs_value(unscaled((double)perimeter_width)));
+        const coordf_t combine_floor = scale_d(this->config->gap_fill_combine_below.get_abs_value(unscaled((double)perimeter_width)));
+        for (const ExPolygon& ex : gaps_ex) {
+            ThickPolylines lines;
+            build_lines(ex, lines);
+            if (split_above > 0 && !lines.empty()) {
+                // length-weighted median width of what this gap would print as
+                std::vector<std::pair<coordf_t, coordf_t>> width_len;
+                coordf_t total_len = 0;
+                for (const ThickPolyline &tp : lines)
+                    for (size_t i = 1; i < tp.points.size(); ++i) {
+                        const coordf_t len = tp.points[i - 1].distance_to(tp.points[i]);
+                        width_len.emplace_back((tp.points_width[i - 1] + tp.points_width[i]) / 2., len);
+                        total_len += len;
+                    }
+                std::sort(width_len.begin(), width_len.end());
+                coordf_t median = 0, acc = 0;
+                for (const auto &wl : width_len) {
+                    acc += wl.second;
+                    if (acc >= total_len / 2) { median = wl.first; break; }
+                }
+                // never split into halves thinner than the combine floor (or half a perimeter
+                // width): that would recreate the skinny lines gap_fill_combine_below removes.
+                const coordf_t half_floor = std::max(combine_floor, coordf_t(perimeter_width) / 2);
+                if (median >= split_above && median / 2 >= half_floor) {
+                    // one wide line would be two lines' worth of plastic in one go. Cut the area
+                    // along its centerline, extended past both ends so the halves come apart,
+                    // and line each half on its own: two parallel lines of about half the width.
+                    Polylines centers;
+                    for (const ThickPolyline &tp : lines) {
+                        Polyline center(tp.points);
+                        center.extend_start(median);
+                        center.extend_end(median);
+                        centers.push_back(std::move(center));
+                    }
+                    ExPolygons halves = diff_ex(ExPolygons{ ex }, offset(centers, scale_d(0.01)));
+                    if (halves.size() >= 2) {
+                        ThickPolylines split_lines;
+                        for (const ExPolygon &half : halves)
+                            build_lines(half, split_lines);
+                        if (!split_lines.empty())
+                            lines = std::move(split_lines);
+                    }
+                }
+            }
+            append(polylines, std::move(lines));
         }
         // create extrusion from lines
         if (!polylines.empty()) {

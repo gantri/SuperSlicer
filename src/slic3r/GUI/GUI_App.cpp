@@ -277,7 +277,7 @@ private:
             title = wxGetApp().is_editor() ? SLIC3R_APP_NAME : GCODEVIEWER_APP_NAME;
 
             // dynamically get the version to display
-            version = _L("Version") + " " + std::string(SLIC3R_VERSION_FULL);
+            version = _L("Version") + " " + wxGetApp().display_version();
 
             // credits infornation
             credits = _L("SuperSlicer is a skinned version of Slic3r, based on PrusaSlicer by Prusa and the original Slic3r by Alessandro Ranellucci & the RepRap community.") + "\n\n" +
@@ -882,6 +882,19 @@ static boost::optional<Semver> parse_semver_from_ini(std::string path)
     if (end < body.size())
         body.resize(end);
     return Semver::parse(body);
+}
+
+wxString GUI_App::display_version() const
+{
+    // The release workflow stamps the fork version into the build id as "+gantri.X.Y.Z";
+    // SLIC3R_VERSION is the upstream SuperSlicer version and says nothing about it. Builds
+    // made outside that workflow carry no stamp and fall back to the full base version.
+    const std::string build_id = is_editor() ? SLIC3R_BUILD_ID : GCODEVIEWER_BUILD_ID;
+    static const std::string gantri_marker = "+gantri.";
+    const size_t idx = build_id.find(gantri_marker);
+    if (idx == std::string::npos)
+        return wxString(SLIC3R_VERSION_FULL);
+    return wxString::FromUTF8(build_id.substr(idx + gantri_marker.size()).c_str());
 }
 
 void GUI_App::init_app_config()

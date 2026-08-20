@@ -849,6 +849,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,       gap_fill_min_width))
     ((ConfigOptionPercent,              gap_fill_overlap))
     ((ConfigOptionFloatOrPercent,       gap_fill_speed))
+    ((ConfigOptionFloatOrPercent,       gap_fill_split_above))
     ((ConfigOptionFloatOrPercent,       gap_fill_target_width))
     ((ConfigOptionFloatOrPercent,       gap_fill_target_external_width_min))
     ((ConfigOptionFloatOrPercent,       gap_fill_target_external_width_max))
