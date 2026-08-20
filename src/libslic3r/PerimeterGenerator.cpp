@@ -370,8 +370,110 @@ ProcessSurfaceResult PerimeterGenerator::process_arachne(int& loop_number, const
     return result;
 }
 
+void PerimeterGenerator::adjust_flows_to_gap_fill_target()
+{
+    if (this->use_arachne || this->layer == nullptr || this->slices == nullptr)
+        return;
+    const double nozzle_diameter = this->perimeter_flow.nozzle_diameter();
+    const double target = this->config->gap_fill_target_width.get_abs_value(nozzle_diameter);
+    const int nb_perimeters = this->config->perimeters.value;
+    if (target <= 0 || nb_perimeters < 1 || !this->config->gap_fill_enabled.value)
+        return;
+    const double ext_min  = this->config->gap_fill_target_external_width_min.get_abs_value(nozzle_diameter);
+    const double ext_max  = this->config->gap_fill_target_external_width_max.get_abs_value(nozzle_diameter);
+    const double peri_min = this->config->gap_fill_target_internal_width_min.get_abs_value(nozzle_diameter);
+    const double peri_max = this->config->gap_fill_target_internal_width_max.get_abs_value(nozzle_diameter);
+    if (ext_min <= 0 || peri_min <= 0 || ext_max < ext_min || peri_max < peri_min)
+        return;
+
+    // wall thickness of this layer: 2*area/boundary_length is the width of a long thin
+    // region (exact for a strip or an annulus). Length-weighted median over the islands,
+    // so a stray blob doesn't skew a shell layer.
+    std::vector<std::pair<double, double>> thickness_weight;
+    double total_weight = 0;
+    for (const Surface &surface : this->slices->surfaces) {
+        double boundary = unscaled(surface.expolygon.contour.length());
+        for (const Polygon &hole : surface.expolygon.holes)
+            boundary += unscaled(hole.length());
+        if (boundary <= 0)
+            continue;
+        const double area = unscaled(unscaled(surface.expolygon.area()));
+        thickness_weight.emplace_back(2 * area / boundary, boundary);
+        total_weight += boundary;
+    }
+    if (thickness_weight.empty())
+        return;
+    std::sort(thickness_weight.begin(), thickness_weight.end());
+    double wall_width = thickness_weight.back().first;
+    double acc = 0;
+    for (const auto &tw : thickness_weight) {
+        acc += tw.second;
+        if (acc >= total_weight / 2) { wall_width = tw.first; break; }
+    }
+
+    const float layer_height = (float)this->layer->height;
+    const float ext_ratio  = this->ext_perimeter_flow.spacing_ratio();
+    const float peri_ratio = this->perimeter_flow.spacing_ratio();
+    // distance from the wall edge to the gap edge with n loops on this side
+    auto side_of = [](const Flow &ext, const Flow &peri, int n) -> double {
+        double side = ext.width() / 2.;
+        if (n == 1)
+            side += ext.spacing() / 2.;
+        else
+            side += (ext.spacing() + peri.spacing()) / 2.
+                  + peri.spacing() * (n - 2)
+                  + peri.spacing() / 2.;
+        return side;
+    };
+    // width of the middle gap left by a candidate pair of perimeter widths.
+    // the configured perimeter count only holds while the wall is thick enough: like the
+    // generator itself, drop the loops that don't fit (their centerline would sit past the
+    // middle of the wall) and measure the gap the surviving loops leave.
+    auto gap_left = [&](double ext_w, double peri_w) -> double {
+        const Flow ext  = Flow::new_from_width((float)ext_w, (float)nozzle_diameter, layer_height, ext_ratio, false);
+        const Flow peri = Flow::new_from_width((float)peri_w, (float)nozzle_diameter, layer_height, peri_ratio, false);
+        int n = nb_perimeters;
+        while (n > 1 && wall_width - 2. * side_of(ext, peri, n) <= -peri.spacing())
+            --n;
+        // the printed line comes out one overlap wider than the area between the
+        // spacing edges (measured: +0.05mm on 0.45/0.2 lines), account for it
+        return wall_width - 2. * side_of(ext, peri, n) + (peri.width() - peri.spacing());
+    };
+
+    const double ext_nominal  = this->ext_perimeter_flow.width();
+    const double peri_nominal = this->perimeter_flow.width();
+    const double nominal_gap = gap_left(ext_nominal, peri_nominal);
+    const double step = 0.0025; // mm
+    double best_ext = ext_nominal, best_peri = peri_nominal;
+    double best_score = nominal_gap > 0 ? std::abs(nominal_gap - target) : std::numeric_limits<double>::max();
+    for (double ext_w = ext_min; ext_w <= ext_max + EPSILON; ext_w += step)
+        for (double peri_w = peri_min; peri_w <= peri_max + EPSILON; peri_w += step) {
+            const double gap = gap_left(ext_w, peri_w);
+            if (gap <= 0)
+                continue;
+            // tiny pull towards the configured widths, so ties don't drift for nothing
+            const double score = std::abs(gap - target)
+                + 0.01 * std::abs(ext_w - ext_nominal)
+                + 0.01 * std::abs(peri_w - peri_nominal);
+            if (score < best_score) { best_score = score; best_ext = ext_w; best_peri = peri_w; }
+        }
+    // if not even the best candidate lands anywhere near the target, this is not the thin
+    // wall this setting is about (solid layer, wall much thicker than the perimeters):
+    // leave the widths alone rather than move visible surfaces for nothing.
+    if (best_score > this->perimeter_flow.width())
+        return;
+    if (best_ext != ext_nominal)
+        this->ext_perimeter_flow = Flow::new_from_width((float)best_ext, (float)nozzle_diameter, layer_height, ext_ratio, false);
+    if (best_peri != peri_nominal)
+        this->perimeter_flow = Flow::new_from_width((float)best_peri, (float)nozzle_diameter, layer_height, peri_ratio, false);
+}
+
 void PerimeterGenerator::process()
 {
+    // "Ideal gap fill width": may replace perimeter_flow / ext_perimeter_flow, so it has
+    // to run before anything below derives widths and spacings from them.
+    this->adjust_flows_to_gap_fill_target();
+
     // other perimeters
     this->m_mm3_per_mm = this->perimeter_flow.mm3_per_mm();
     this->perimeter_width = this->perimeter_flow.scaled_width();
