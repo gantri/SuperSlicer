@@ -947,7 +947,6 @@ void MainFrame::change_tab(Tab* old_tab, Tab* new_tab)
 void MainFrame::update_title()
 {
     wxString title = wxEmptyString;
-    bool has_name = false;
     if (m_plater != nullptr) {
         // m_plater->get_project_filename() produces file name including path, but excluding extension.
         // Don't try to remove the extension, it would remove part of the file name after the last dot!
@@ -965,25 +964,22 @@ void MainFrame::update_title()
         }
     }
 
+    // Show which Gantri build this is. The release workflow stamps the fork version into
+    // the build id as "+gantri.X.Y.Z"; SLIC3R_VERSION is the upstream SuperSlicer version
+    // and says nothing about it. Builds made outside that workflow carry no stamp and
+    // fall back to the full base version.
     std::string build_id = wxGetApp().is_editor() ? SLIC3R_BUILD_ID : GCODEVIEWER_BUILD_ID;
-    size_t 		idx_plus = build_id.find('+');
-    if (idx_plus != build_id.npos) {
-    	// Parse what is behind the '+'. If there is a number, then it is a build number after the label, and full build ID is shown.
-    	int commit_after_label;
-    	if (! boost::starts_with(build_id.data() + idx_plus + 1, "UNKNOWN") && 
-            (build_id.at(idx_plus + 1) == '-' || sscanf(build_id.data() + idx_plus + 1, "%d-", &commit_after_label) == 0)) {
-    		// It is a release build.
-    		build_id.erase(build_id.begin() + idx_plus, build_id.end());    		
+    static const std::string gantri_marker = "+gantri.";
+    size_t      idx_gantri = build_id.find(gantri_marker);
+    wxString    version = (idx_gantri == std::string::npos)
+        ? wxString(SLIC3R_VERSION_FULL)
+        : wxString::FromUTF8(build_id.substr(idx_gantri + gantri_marker.size()).c_str());
 #if defined(_WIN32) && ! defined(_WIN64)
-    		// People are using 32bit slicer on a 64bit machine by mistake. Make it explicit.
-            build_id += " 32 bit";
+    // People are using 32bit slicer on a 64bit machine by mistake. Make it explicit.
+    version += " 32 bit";
 #endif
-    	}
-    }
 
-    title += wxString(SLIC3R_APP_NAME) + "_" + wxString(SLIC3R_VERSION) ;
-    if (wxGetApp().is_editor() && !has_name)
-        title += (" " + _L(SLIC3R_BASED_ON));
+    title += wxString(SLIC3R_APP_NAME) + "_" + version;
 
     SetTitle(title);
 }
