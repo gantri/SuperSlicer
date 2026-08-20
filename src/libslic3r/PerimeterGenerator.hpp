@@ -172,6 +172,10 @@ private:
     ProcessSurfaceResult process_arachne(int& loop_number, const Surface& surface);
     
     void        processs_no_bridge(Surfaces& all_surfaces);
+    // "Ideal gap fill width": nudge this layer's perimeter flows, inside their allowed
+    // ranges, so the gap fill line left in the middle of a thin wall comes out as close
+    // as possible to gap_fill_target_width. Classic generator only.
+    void        adjust_flows_to_gap_fill_target();
     ExtrusionPaths create_overhangs(const Polyline& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external = false) const;
     ExtrusionPaths create_overhangs(const ClipperLib_Z::Path& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external = false) const;
 

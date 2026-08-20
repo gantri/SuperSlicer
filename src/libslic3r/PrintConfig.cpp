@@ -2691,6 +2691,82 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("gap_fill_target_width", coFloatOrPercent);
+    def->label = L("Ideal gap fill width");
+    def->full_label = L("Gapfill: ideal width");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("On layers that are a thin wall (some perimeters and one gap fill line in the middle),"
+        " nudge the external and internal perimeter widths, inside their allowed ranges below, so that"
+        " the middle gap fill line comes out as close as possible to this width."
+        "\nCan be a % of the nozzle diameter.\n0 to disable.");
+    def->ratio_over = "nozzle_diameter";
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 0, false });
+
+    def = this->add("gap_fill_target_external_width_min", coFloatOrPercent);
+    def->label = L("External perimeter width min");
+    def->full_label = L("Gapfill ideal width: external perimeter min");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("Lowest external perimeter width the 'Ideal gap fill width' adjustment may use."
+        "\nCan be a % of the nozzle diameter.");
+    def->ratio_over = "nozzle_diameter";
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 105, true });
+
+    def = this->add("gap_fill_target_external_width_max", coFloatOrPercent);
+    def->label = L("External perimeter width max");
+    def->full_label = L("Gapfill ideal width: external perimeter max");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("Highest external perimeter width the 'Ideal gap fill width' adjustment may use."
+        "\nCan be a % of the nozzle diameter.");
+    def->ratio_over = "nozzle_diameter";
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 125, true });
+
+    def = this->add("gap_fill_target_internal_width_min", coFloatOrPercent);
+    def->label = L("Internal perimeter width min");
+    def->full_label = L("Gapfill ideal width: internal perimeter min");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("Lowest internal perimeter width the 'Ideal gap fill width' adjustment may use."
+        "\nCan be a % of the nozzle diameter.");
+    def->ratio_over = "nozzle_diameter";
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 105, true });
+
+    def = this->add("gap_fill_target_internal_width_max", coFloatOrPercent);
+    def->label = L("Internal perimeter width max");
+    def->full_label = L("Gapfill ideal width: internal perimeter max");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("Highest internal perimeter width the 'Ideal gap fill width' adjustment may use."
+        "\nCan be a % of the nozzle diameter.");
+    def->ratio_over = "nozzle_diameter";
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 130, true });
+
+    def = this->add("gap_fill_combine_below", coFloatOrPercent);
+    def->label = L("Combine with perimeter below");
+    def->full_label = L("Gapfill: combine with perimeter below");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("When a gap fill line would be thinner than this threshold, it isn't printed as a skinny line:"
+        " the perimeter next to it is absorbed into the gap fill instead, and one thicker gap fill line is printed"
+        " in place of both.\nWith a value of 50%, every gap fill line ends up between 50% and 150% of the perimeter"
+        " width instead of tapering down to nothing.\nCan be a % of the perimeter width.\n0 to disable.");
+    def->ratio_over = "perimeter_width";
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 0, false });
+
     def = this->add("gap_fill_max_width", coFloatOrPercent);
     def->label = L("Max width");
     def->full_label = L("Gapfill: Max width");
@@ -7636,6 +7712,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "first_layer_min_speed",
 "first_layer_size_compensation_layers",
 "gap_fill_acceleration",
+"gap_fill_combine_below",
 "gap_fill_extension",
 "gap_fill_flow_match_perimeter",
 "gap_fill_last",
@@ -7645,6 +7722,11 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "gap_fill_min_length",
 "gap_fill_min_width",
 "gap_fill_overlap",
+"gap_fill_target_width",
+"gap_fill_target_external_width_min",
+"gap_fill_target_external_width_max",
+"gap_fill_target_internal_width_min",
+"gap_fill_target_internal_width_max",
 "gcode_filename_illegal_char",
 "hole_size_compensation",
 "hole_size_threshold",
