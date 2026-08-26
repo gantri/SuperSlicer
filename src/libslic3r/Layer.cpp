@@ -206,6 +206,9 @@ void Layer::make_perimeters()
                 && config.overhangs_width_speed     == other_config.overhangs_width_speed
                 && config.overhangs_width           == other_config.overhangs_width
                 && config.overhangs_next_perimeter  == other_config.overhangs_next_perimeter
+                && config.overhangs_dynamic_speed_enabled == other_config.overhangs_dynamic_speed_enabled
+                && config.overhangs_dynamic_speed   == other_config.overhangs_dynamic_speed
+                && config.overhangs_dynamic_speed_percent == other_config.overhangs_dynamic_speed_percent
                 && config.overhangs_reverse         == other_config.overhangs_reverse
                 && config.overhangs_reverse_threshold == other_config.overhangs_reverse_threshold
                 && config.external_perimeter_extrusion_multiplier == other_config.external_perimeter_extrusion_multiplier

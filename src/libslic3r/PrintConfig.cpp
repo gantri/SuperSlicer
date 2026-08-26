@@ -3937,6 +3937,45 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(100, true));
 
+    def = this->add("overhangs_dynamic_speed_enabled", coBool);
+    def->label = L("Dynamic overhang speed");
+    def->full_label = L("Dynamic overhang speed");
+    def->category = OptionCategory::speed;
+    def->tooltip = L("Slow down overhanging perimeters based on how steep the overhang is, instead of using"
+        " the single flat overhangs speed."
+        "\nEach row of the table below maps an overhang percentage (how much of the line width is printing"
+        " above air) to a print speed. When an overhang lies between two rows, the speed is linearly"
+        " interpolated between them."
+        "\nThe row with the smallest percentage acts as the detection threshold: below it, the perimeter"
+        " is not treated as an overhang. Rows with a percentage or speed of 0 are ignored.");
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("overhangs_dynamic_speed_percent", coFloats);
+    def->label = L("Overhang");
+    def->full_label = L("Dynamic overhang speed: overhang percentage");
+    def->category = OptionCategory::speed;
+    def->tooltip = L("Percentage of the perimeter line width that is printing above air for this row"
+        " of the dynamic overhang speed table. 100% means the line is fully unsupported."
+        "\nSet to 0 to disable this row.");
+    def->sidetext = L("%");
+    def->min = 0;
+    def->max = 100;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloats { 100., 80., 60., 50., 40., 30., 25., 0. });
+
+    def = this->add("overhangs_dynamic_speed", coFloats);
+    def->label = L("Speed");
+    def->full_label = L("Dynamic overhang speed: speed");
+    def->category = OptionCategory::speed;
+    def->tooltip = L("Print speed for the overhang percentage of this row of the dynamic overhang speed"
+        " table."
+        "\nSet to 0 to disable this row.");
+    def->sidetext = L("mm/s");
+    def->min = 0;
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloats { 6., 6., 8., 12., 20., 30., 50., 0. });
+
     def = this->add("overhangs_speed_enforce", coInt);
     def->label = L("Enforce overhangs speed");
     def->full_label = L("Enforce overhangs speed");
@@ -7781,6 +7820,9 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "overhangs_next_perimeter",
 "overhangs_reverse",
 "overhangs_speed",
+"overhangs_dynamic_speed_enabled",
+"overhangs_dynamic_speed",
+"overhangs_dynamic_speed_percent",
 "overhangs_speed_enforce",
 "overhangs_width_speed",
 "perimeter_bonding",

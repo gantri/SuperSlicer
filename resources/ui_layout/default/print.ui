@@ -341,6 +341,32 @@ group:label_width$8:sidetext_width$7:Speed for print moves
 	line:Other speed
 		setting:width$4:thin_walls_speed
 		setting:width$4:ironing_speed
+group:title_width$10:sidetext_width$5:Dynamic overhang speed
+	setting:label$Enable:overhangs_dynamic_speed_enabled
+	line:_
+		setting:id$0:label$_:label_width$0:width$4:overhangs_dynamic_speed
+		setting:id$0:label$_:label_width$0:width$4:overhangs_dynamic_speed_percent
+	line:_
+		setting:id$1:label$_:label_width$0:width$4:overhangs_dynamic_speed
+		setting:id$1:label$_:label_width$0:width$4:overhangs_dynamic_speed_percent
+	line:_
+		setting:id$2:label$_:label_width$0:width$4:overhangs_dynamic_speed
+		setting:id$2:label$_:label_width$0:width$4:overhangs_dynamic_speed_percent
+	line:Overhang speed
+		setting:id$3:label$_:label_width$0:width$4:overhangs_dynamic_speed
+		setting:id$3:label$_:label_width$0:width$4:overhangs_dynamic_speed_percent
+	line:_
+		setting:id$4:label$_:label_width$0:width$4:overhangs_dynamic_speed
+		setting:id$4:label$_:label_width$0:width$4:overhangs_dynamic_speed_percent
+	line:_
+		setting:id$5:label$_:label_width$0:width$4:overhangs_dynamic_speed
+		setting:id$5:label$_:label_width$0:width$4:overhangs_dynamic_speed_percent
+	line:_
+		setting:id$6:label$_:label_width$0:width$4:overhangs_dynamic_speed
+		setting:id$6:label$_:label_width$0:width$4:overhangs_dynamic_speed_percent
+	line:_
+		setting:id$7:label$_:label_width$0:width$4:overhangs_dynamic_speed
+		setting:id$7:label$_:label_width$0:width$4:overhangs_dynamic_speed_percent
 group:Speed for non-print moves
 	line:Travel speed
 		setting:label$xy:travel_speed
