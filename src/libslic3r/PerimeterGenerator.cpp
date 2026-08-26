@@ -632,12 +632,18 @@ void PerimeterGenerator::process()
                     [](const std::pair<double, double>& a, const std::pair<double, double>& b) { return std::abs(a.first - b.first) < 0.01; }),
                 rows.end());
             if (!rows.empty()) {
-                // boundaries at each row, subdividing wide gaps so the interpolation stays smooth
+                // Boundaries at each row, subdividing wide gaps so the interpolation stays
+                // smooth. Two boundaries closer together than the slicing resolution offset
+                // to the same polygon, so a finer step cannot change which wall falls in
+                // which band: that resolution, expressed as a share of the line width, is
+                // the step. The floor covers profiles that disable simplification entirely.
+                const double width_mm = unscaled(ext_perimeter_width);
+                const double step_percent = 100. * std::max(this->print_config->resolution.value, width_mm / 100.) / width_mm;
                 std::vector<double> bounds;
                 bounds.push_back(rows.front().first);
                 for (size_t i = 1; i < rows.size(); ++i) {
                     double span = rows[i].first - rows[i - 1].first;
-                    int steps = std::max(1, (int)std::ceil(span / 10.));
+                    int steps = std::max(1, (int)std::ceil(span / step_percent));
                     for (int k = 1; k <= steps; ++k)
                         bounds.push_back(rows[i - 1].first + span * k / steps);
                 }
@@ -666,10 +672,13 @@ void PerimeterGenerator::process()
                     this->_dyn_band_speed.push_back((float)interpolated((bounds[i] + band_end) / 2.));
                     this->_dyn_band_flow.push_back(flow_percent >= 0. && bounds[i] >= flow_percent - 0.5);
                 }
+                // Simplify no further than the profile's own resolution: a coarser tolerance
+                // would blur the lower slices past the distance separating two bands.
                 ExPolygons dyn_simplified;
-                if (this->print_config->resolution < ext_perimeter_width / 20) {
+                const coord_t dyn_tolerance = scale_t(this->print_config->resolution.value);
+                if (dyn_tolerance > 0) {
                     for (const ExPolygon& expoly : *lower_slices)
-                        expoly.simplify(ext_perimeter_width / 10, &dyn_simplified);
+                        expoly.simplify(dyn_tolerance, &dyn_simplified);
                 }
                 const ExPolygons& dyn_lower = dyn_simplified.empty() ? *this->lower_slices : dyn_simplified;
                 for (double pct : bounds) {
