@@ -575,7 +575,16 @@ void PerimeterGenerator::process()
     // now the tolerance is built in thin_periemter settings
 
     // prepare grown lower layer slices for overhang detection
-    if (this->lower_slices != NULL && (this->config->overhangs_width.value > 0 || this->config->overhangs_width_speed.value > 0)) {
+    this->_dyn_overhangs = false;
+    this->_dyn_bounds_percent.clear();
+    this->_dyn_band_speed.clear();
+    this->_dyn_band_flow.clear();
+    this->_lower_slices_dyn.clear();
+    this->_lower_slices_dyn_next.clear();
+    this->_lower_slices_dyn_clipperpaths.clear();
+    this->_lower_slices_dyn_next_clipperpaths.clear();
+    if (this->lower_slices != NULL && (this->config->overhangs_width.value > 0 || this->config->overhangs_width_speed.value > 0
+        || this->config->overhangs_dynamic_speed_enabled.value)) {
         // We consider overhang any part where the entire nozzle diameter is not supported by the
         // lower layer, so we take lower slices and offset them by overhangs_width of the nozzle diameter used 
         // in the current layer
@@ -607,7 +616,93 @@ void PerimeterGenerator::process()
         this->_overhangs_next_perimeter = this->config->overhangs_next_perimeter.value;
         const coordf_t next_perimeter_shift = this->_overhangs_next_perimeter ? (coordf_t)this->ext_perimeter_spacing2 : 0.;
 
-        if (overhangs_width_speed > 0 || overhangs_width_flow > 0) {
+        // Dynamic overhang speed: turn the (percent, speed) rows into nested band
+        // boundaries and grow one region per boundary. When active, it replaces the
+        // two-level speed masks below; the bridge flow threshold (overhangs_width) is
+        // folded in as one more boundary so flow and speed stay independent.
+        if (this->config->overhangs_dynamic_speed_enabled.value) {
+            std::vector<std::pair<double, double>> rows; // (percent of line width above air, speed mm/s)
+            const std::vector<double>& row_percents = this->config->overhangs_dynamic_speed_percent.values;
+            const std::vector<double>& row_speeds = this->config->overhangs_dynamic_speed.values;
+            for (size_t i = 0; i < std::min(row_percents.size(), row_speeds.size()); ++i)
+                if (row_percents[i] > 0 && row_speeds[i] > 0)
+                    rows.emplace_back(std::min(100., row_percents[i]), row_speeds[i]);
+            std::sort(rows.begin(), rows.end());
+            rows.erase(std::unique(rows.begin(), rows.end(),
+                    [](const std::pair<double, double>& a, const std::pair<double, double>& b) { return std::abs(a.first - b.first) < 0.01; }),
+                rows.end());
+            if (!rows.empty()) {
+                // Boundaries at each row, subdividing wide gaps so the interpolation stays
+                // smooth. Two boundaries closer together than the slicing resolution offset
+                // to the same polygon, so a finer step cannot change which wall falls in
+                // which band: that resolution, expressed as a share of the line width, is
+                // the step. The floor covers profiles that disable simplification entirely.
+                const double width_mm = unscaled(ext_perimeter_width);
+                const double step_percent = 100. * std::max(this->print_config->resolution.value, width_mm / 100.) / width_mm;
+                std::vector<double> bounds;
+                bounds.push_back(rows.front().first);
+                for (size_t i = 1; i < rows.size(); ++i) {
+                    double span = rows[i].first - rows[i - 1].first;
+                    int steps = std::max(1, (int)std::ceil(span / step_percent));
+                    for (int k = 1; k <= steps; ++k)
+                        bounds.push_back(rows[i - 1].first + span * k / steps);
+                }
+                // the flow threshold expressed as a percent of the line width, inserted as a boundary
+                double flow_percent = -1.;
+                if (overhangs_width_flow > 0) {
+                    flow_percent = 100. * double(overhangs_width_flow) / double(ext_perimeter_width);
+                    auto it = std::lower_bound(bounds.begin(), bounds.end(), flow_percent);
+                    if ((it == bounds.end() || std::abs(*it - flow_percent) > 0.5)
+                        && (it == bounds.begin() || std::abs(*(it - 1) - flow_percent) > 0.5))
+                        bounds.insert(it, flow_percent);
+                }
+                auto interpolated = [&rows](double percent) -> double {
+                    if (percent <= rows.front().first) return rows.front().second;
+                    if (percent >= rows.back().first) return rows.back().second;
+                    for (size_t i = 1; i < rows.size(); ++i)
+                        if (percent <= rows[i].first) {
+                            double t = (percent - rows[i - 1].first) / (rows[i].first - rows[i - 1].first);
+                            return rows[i - 1].second + t * (rows[i].second - rows[i - 1].second);
+                        }
+                    return rows.back().second;
+                };
+                for (size_t i = 0; i < bounds.size(); ++i) {
+                    // a band's speed is the interpolation at its middle; the last band clamps to the last row
+                    double band_end = (i + 1 < bounds.size()) ? bounds[i + 1] : std::max(rows.back().first, bounds[i]);
+                    this->_dyn_band_speed.push_back((float)interpolated((bounds[i] + band_end) / 2.));
+                    this->_dyn_band_flow.push_back(flow_percent >= 0. && bounds[i] >= flow_percent - 0.5);
+                }
+                // Simplify no further than the profile's own resolution: a coarser tolerance
+                // would blur the lower slices past the distance separating two bands.
+                ExPolygons dyn_simplified;
+                const coord_t dyn_tolerance = scale_t(this->print_config->resolution.value);
+                if (dyn_tolerance > 0) {
+                    for (const ExPolygon& expoly : *lower_slices)
+                        expoly.simplify(dyn_tolerance, &dyn_simplified);
+                }
+                const ExPolygons& dyn_lower = dyn_simplified.empty() ? *this->lower_slices : dyn_simplified;
+                for (double pct : bounds) {
+                    // a centerline farther than this from the lower slices has more than pct% of its width above air
+                    coordf_t dist = coordf_t(double(ext_perimeter_width) * (pct / 100. - 0.5));
+                    this->_lower_slices_dyn.push_back(offset(dyn_lower, dist));
+                    if (use_arachne) {
+                        this->_lower_slices_dyn_clipperpaths.emplace_back();
+                        convert_to_clipperpath(this->_lower_slices_dyn.back(), this->_lower_slices_dyn_clipperpaths.back());
+                    }
+                    if (this->_overhangs_next_perimeter) {
+                        this->_lower_slices_dyn_next.push_back(offset(dyn_lower, dist - next_perimeter_shift));
+                        if (use_arachne) {
+                            this->_lower_slices_dyn_next_clipperpaths.emplace_back();
+                            convert_to_clipperpath(this->_lower_slices_dyn_next.back(), this->_lower_slices_dyn_next_clipperpaths.back());
+                        }
+                    }
+                }
+                this->_dyn_bounds_percent = bounds;
+                this->_dyn_overhangs = true;
+            }
+        }
+
+        if (!this->_dyn_overhangs && (overhangs_width_speed > 0 || overhangs_width_flow > 0)) {
             ExPolygons simplified;
             //simplify the lower slices if too high (means low number) resolution (we can be very aggressive here)
             if (this->print_config->resolution < min_feature / 2) {
@@ -2018,6 +2113,8 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& loop_number, const
 
 
 ExtrusionPaths PerimeterGenerator::create_overhangs(const Polyline& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external) const {
+    if (this->_dyn_overhangs)
+        return this->create_overhangs_dynamic(loop_polygons, role, is_external, is_next_to_external);
     ExtrusionPaths paths;
     const double overhangs_width = this->config->overhangs_width.get_abs_value(this->overhang_flow.nozzle_diameter());
     const double overhangs_width_speed = this->config->overhangs_width_speed.get_abs_value(this->overhang_flow.nozzle_diameter());
@@ -2327,6 +2424,8 @@ ExtrusionPaths PerimeterGenerator::create_overhangs(const Polyline& loop_polygon
 
 //TODO: transform to ExtrusionMultiPath instead of ExtrusionPaths
 ExtrusionPaths PerimeterGenerator::create_overhangs(const ClipperLib_Z::Path& arachne_path, ExtrusionRole role, bool is_external, bool is_next_to_external) const {
+    if (this->_dyn_overhangs)
+        return this->create_overhangs_dynamic(arachne_path, role, is_external, is_next_to_external);
     ExtrusionPaths paths;
     const bool is_loop = Point{ arachne_path.front().x(), arachne_path.front().y() }.coincides_with_epsilon(Point{ arachne_path.back().x(), arachne_path.back().y() });
     const double overhangs_width = this->config->overhangs_width.get_abs_value(this->overhang_flow.nozzle_diameter());
@@ -2650,6 +2749,303 @@ ExtrusionPaths PerimeterGenerator::create_overhangs(const ClipperLib_Z::Path& ar
     //set correct height
     for (ExtrusionPath& path : paths) {
         path.height = path.height < 3 ? (float)this->layer->height : this->overhang_flow.height();
+    }
+
+    return paths;
+}
+
+ExtrusionPaths PerimeterGenerator::create_overhangs_dynamic(const Polyline& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external) const {
+    const bool use_next = is_next_to_external && this->_overhangs_next_perimeter;
+    const std::vector<Polygons>& masks = use_next ? this->_lower_slices_dyn_next : this->_lower_slices_dyn;
+    const size_t nb_bands = masks.size();
+
+    ExtrusionPaths paths;
+    Polylines ok_polylines = { loop_polygons };
+    std::vector<Polylines> bands(nb_bands);
+    Polylines* previous = &ok_polylines;
+    for (size_t i = 0; i < nb_bands && !previous->empty(); ++i) {
+        if (masks[i].empty()) {
+            // even the grown lower layer is gone at this level: everything left is more overhanging
+            bands[i] = std::move(*previous);
+            previous->clear();
+            previous = &bands[i];
+            continue;
+        }
+        bands[i] = diff_pl(*previous, masks[i]);
+        if (!bands[i].empty()) {
+            *previous = intersection_pl(*previous, masks[i]);
+            previous = &bands[i];
+        }
+    }
+
+    bool any_overhang = false;
+    for (const Polylines& band : bands)
+        any_overhang |= !band.empty();
+
+    if (!ok_polylines.empty()) {
+        if (!any_overhang) {
+            //fast track
+            ExtrusionPath path(role);
+            path.polyline = loop_polygons;
+            path.mm3_per_mm = is_external ? this->ext_mm3_per_mm() : this->mm3_per_mm();
+            path.width = is_external ? this->ext_perimeter_flow.width() : this->perimeter_flow.width();
+            path.height = (float)this->layer->height;
+            return { path };
+        }
+        extrusion_paths_append(
+            paths,
+            ok_polylines,
+            role,
+            is_external ? this->ext_mm3_per_mm() : this->mm3_per_mm(),
+            is_external ? this->ext_perimeter_flow.width() : this->perimeter_flow.width(),
+            0);
+    }
+    //note: layer height is used to identify the band (0 = not overhang, i+1 = band i), rewritten to the real height at the end
+    for (size_t i = 0; i < nb_bands; ++i) {
+        if (bands[i].empty())
+            continue;
+        const bool flow = this->_dyn_band_flow[i];
+        size_t first_new = paths.size();
+        extrusion_paths_append(
+            paths,
+            bands[i],
+            erOverhangPerimeter,
+            flow ? this->mm3_per_mm_overhang() : (is_external ? this->ext_mm3_per_mm() : this->mm3_per_mm()),
+            flow ? this->overhang_flow.width() : (is_external ? this->ext_perimeter_flow.width() : this->perimeter_flow.width()),
+            (float)(i + 1));
+        for (size_t j = first_new; j < paths.size(); ++j)
+            paths[j].overhang_speed = this->_dyn_band_speed[i];
+    }
+
+    // reapply the nearest point search for starting point
+    // We allow polyline reversal because Clipper may have randomly reversed polylines during clipping.
+    if (!paths.empty())
+        chain_and_reorder_extrusion_paths(paths, &paths.front().first_point());
+
+    std::function<void(ExtrusionPaths&, const std::function<bool(ExtrusionPath&, ExtrusionPath&, ExtrusionPath&)>&)> foreach = [](ExtrusionPaths& paths, const std::function<bool(ExtrusionPath&, ExtrusionPath&, ExtrusionPath&)>& doforeach) {
+        if (paths.size() > 2)
+            for (int i = 1; i < paths.size() - 1; i++) {
+                if (doforeach(paths[i - 1], paths[i], paths[i + 1])) {
+                    paths.erase(paths.begin() + i);
+                    i--;
+                    if (paths[i].height == paths[i + 1].height) {
+                        paths[i].polyline.append(paths[i + 1].polyline);
+                        paths.erase(paths.begin() + i + 1);
+                    }
+                }
+            }
+        if (paths.size() > 2)
+            if (doforeach(paths[paths.size() - 2], paths.back(), paths.front())) {
+                paths.erase(paths.end() - 1);
+                if (paths.back().height == paths.front().height) {
+                    paths.back().polyline.append(paths.front().polyline);
+                    paths.front().polyline.swap(paths.back().polyline);
+                    paths.erase(paths.end() - 1);
+                }
+            }
+        if (paths.size() > 2)
+            if (doforeach(paths.back(), paths.front(), paths[1])) {
+                paths.erase(paths.begin());
+                if (paths.back().height == paths.front().height) {
+                    paths.back().polyline.append(paths.front().polyline);
+                    paths.front().polyline.swap(paths.back().polyline);
+                    paths.erase(paths.end() - 1);
+                }
+            }
+    };
+
+    // merge sections too short to be worth their own speed into the closest band
+    if (paths.size() > 2) {
+        double min_length = this->perimeter_flow.scaled_width() * 2;
+        foreach(paths, [min_length](ExtrusionPath& prev, ExtrusionPath& curr, ExtrusionPath& next) {
+            if (curr.length() < min_length) {
+                float diff_height = std::abs(prev.height - curr.height) - std::abs(next.height - curr.height);
+                //have to choose the rigth path
+                if (diff_height < 0 || (diff_height == 0 && prev.length() > next.length())) {
+                    //merge to previous
+                    assert(prev.last_point() == curr.first_point());
+                    assert(curr.polyline.size() > 1);
+                    prev.polyline.append(curr.polyline);
+                } else {
+                    //merge to next
+                    assert(curr.last_point() == next.first_point());
+                    assert(curr.polyline.size() > 1);
+                    curr.polyline.append(next.polyline);
+                    next.polyline.swap(curr.polyline);
+                }
+                return true;
+            }
+            return false;
+        });
+    }
+    if (paths.size() == 2) {
+        double min_length = this->perimeter_flow.scaled_width() * 2;
+        if (paths.front().length() < min_length) {
+            paths.front().polyline.append(paths.back().polyline);
+            paths.back().polyline.swap(paths.front().polyline);
+            paths.erase(paths.begin());
+        } else if (paths.back().length() < min_length) {
+            paths.front().polyline.append(paths.back().polyline);
+            paths.erase(paths.begin() + 1);
+        }
+    }
+    //set correct height
+    for (ExtrusionPath& path : paths) {
+        int band = int(path.height) - 1;
+        path.height = (band >= 0 && this->_dyn_band_flow[band]) ? this->overhang_flow.height() : (float)this->layer->height;
+    }
+
+    return paths;
+}
+
+ExtrusionPaths PerimeterGenerator::create_overhangs_dynamic(const ClipperLib_Z::Path& arachne_path, ExtrusionRole role, bool is_external, bool is_next_to_external) const {
+    const bool is_loop = Point{ arachne_path.front().x(), arachne_path.front().y() }.coincides_with_epsilon(Point{ arachne_path.back().x(), arachne_path.back().y() });
+    const bool use_next = is_next_to_external && this->_overhangs_next_perimeter;
+    const std::vector<ClipperLib_Z::Paths>& masks = use_next ? this->_lower_slices_dyn_next_clipperpaths : this->_lower_slices_dyn_clipperpaths;
+    const std::vector<Polygons>& masks_poly = use_next ? this->_lower_slices_dyn_next : this->_lower_slices_dyn;
+    const size_t nb_bands = masks.size();
+
+    ExtrusionPaths paths;
+    ClipperLib_Z::Paths ok_polylines = { arachne_path };
+    std::vector<ClipperLib_Z::Paths> bands(nb_bands);
+    ClipperLib_Z::Paths* previous = &ok_polylines;
+    for (size_t i = 0; i < nb_bands && !previous->empty(); ++i) {
+        if (masks_poly[i].empty()) {
+            // even the grown lower layer is gone at this level: everything left is more overhanging
+            bands[i] = std::move(*previous);
+            previous->clear();
+            previous = &bands[i];
+            continue;
+        }
+        bands[i] = clip_extrusion(*previous, masks[i], ClipperLib_Z::ctDifference);
+        if (!bands[i].empty()) {
+            *previous = clip_extrusion(*previous, masks[i], ClipperLib_Z::ctIntersection);
+            previous = &bands[i];
+        }
+    }
+
+    bool any_overhang = false;
+    for (const ClipperLib_Z::Paths& band : bands)
+        any_overhang |= !band.empty();
+
+    //note: layer height is used to identify the band (0 = not overhang, i+1 = band i), rewritten to the real height at the end
+    if (!ok_polylines.empty()) {
+        if (!any_overhang) {
+            //fast track
+            return Geometry::unsafe_variable_width(Arachne::to_thick_polyline(arachne_path),
+                role,
+                is_external ? this->ext_perimeter_flow : this->perimeter_flow,
+                std::max(this->ext_perimeter_flow.scaled_width() / 4, scale_t(this->print_config->resolution)),
+                (is_external ? this->ext_perimeter_flow : this->perimeter_flow).scaled_width() / 10);
+        }
+        for (const ClipperLib_Z::Path& extrusion_path : ok_polylines) {
+            for (auto&& path : Geometry::unsafe_variable_width(Arachne::to_thick_polyline(extrusion_path),
+                role,
+                is_external ? this->ext_perimeter_flow : this->perimeter_flow,
+                std::max(this->ext_perimeter_flow.scaled_width() / 4, scale_t(this->print_config->resolution)),
+                (is_external ? this->ext_perimeter_flow : this->perimeter_flow).scaled_width() / 10)) {
+                path.height = 0;
+                paths.push_back(std::move(path));
+            }
+        }
+    }
+    for (size_t i = 0; i < nb_bands; ++i) {
+        if (bands[i].empty())
+            continue;
+        const bool flow = this->_dyn_band_flow[i];
+        for (const ClipperLib_Z::Path& extrusion_path : bands[i]) {
+            for (auto&& path : Geometry::unsafe_variable_width(Arachne::to_thick_polyline(extrusion_path),
+                erOverhangPerimeter,
+                flow ? this->overhang_flow : (is_external ? this->ext_perimeter_flow : this->perimeter_flow),
+                std::max(this->ext_perimeter_flow.scaled_width() / 4, scale_t(this->print_config->resolution)),
+                (is_external ? this->ext_perimeter_flow : this->perimeter_flow).scaled_width() / 10)) {
+                path.height = (float)(i + 1);
+                path.overhang_speed = this->_dyn_band_speed[i];
+                paths.push_back(std::move(path));
+            }
+        }
+    }
+
+    // reapply the nearest point search for starting point
+    // We allow polyline reversal because Clipper may have randomly reversed polylines during clipping.
+    if (!paths.empty())
+        chain_and_reorder_extrusion_paths(paths, &paths.front().first_point());
+
+    std::function<void(ExtrusionPaths&, const std::function<bool(ExtrusionPath&, ExtrusionPath&, ExtrusionPath&)>&)> foreach = [is_loop](ExtrusionPaths& paths, const std::function<bool(ExtrusionPath&, ExtrusionPath&, ExtrusionPath&)>& doforeach) {
+        if (paths.size() > 2)
+            for (int i = 1; i < paths.size() - 1; i++) {
+                if (doforeach(paths[i - 1], paths[i], paths[i + 1])) {
+                    paths.erase(paths.begin() + i);
+                    i--;
+                    if (paths[i].height == paths[i + 1].height) {
+                        paths[i].polyline.append(paths[i + 1].polyline);
+                        paths.erase(paths.begin() + i + 1);
+                    }
+                }
+            }
+        if (is_loop) {
+            if (paths.size() > 2) {
+                if (doforeach(paths[paths.size() - 2], paths.back(), paths.front())) {
+                    paths.erase(paths.end() - 1);
+                    if (paths.back().height == paths.front().height) {
+                        paths.back().polyline.append(paths.front().polyline);
+                        paths.front().polyline.swap(paths.back().polyline);
+                        paths.erase(paths.end() - 1);
+                    }
+                }
+            }
+            if (paths.size() > 2) {
+                if (doforeach(paths.back(), paths.front(), paths[1])) {
+                    paths.erase(paths.begin());
+                    if (paths.back().height == paths.front().height) {
+                        paths.back().polyline.append(paths.front().polyline);
+                        paths.front().polyline.swap(paths.back().polyline);
+                        paths.erase(paths.end() - 1);
+                    }
+                }
+            }
+        }
+    };
+
+    // merge sections too short to be worth their own speed into the closest band
+    if (paths.size() > 2) {
+        double min_length = this->perimeter_flow.scaled_width() * 2;
+        foreach(paths, [min_length](ExtrusionPath& prev, ExtrusionPath& curr, ExtrusionPath& next) {
+            if (curr.length() < min_length) {
+                float diff_height = std::abs(prev.height - curr.height) - std::abs(next.height - curr.height);
+                //have to choose the rigth path
+                if (diff_height < 0 || (diff_height == 0 && prev.length() > next.length())) {
+                    //merge to previous
+                    assert(prev.last_point() == curr.first_point());
+                    assert(curr.polyline.size() > 1);
+                    prev.polyline.append(curr.polyline);
+                } else {
+                    //merge to next
+                    assert(curr.last_point() == next.first_point());
+                    assert(curr.polyline.size() > 1);
+                    curr.polyline.append(next.polyline);
+                    next.polyline.swap(curr.polyline);
+                }
+                return true;
+            }
+            return false;
+        });
+    }
+    if (paths.size() == 2) {
+        double min_length = this->perimeter_flow.scaled_width() * 2;
+        if (paths.front().length() < min_length) {
+            paths.front().polyline.append(paths.back().polyline);
+            paths.back().polyline.swap(paths.front().polyline);
+            paths.erase(paths.begin());
+        } else if (paths.back().length() < min_length) {
+            paths.front().polyline.append(paths.back().polyline);
+            paths.erase(paths.begin() + 1);
+        }
+    }
+    //set correct height
+    for (ExtrusionPath& path : paths) {
+        int band = int(path.height) - 1;
+        path.height = (band >= 0 && this->_dyn_band_flow[band]) ? this->overhang_flow.height() : (float)this->layer->height;
     }
 
     return paths;

@@ -889,6 +889,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,       min_width_top_surface))
     // Detect bridging perimeters
     ((ConfigOptionFloatOrPercent,       overhangs_speed))
+    ((ConfigOptionBool,                 overhangs_dynamic_speed_enabled))
+    ((ConfigOptionFloats,               overhangs_dynamic_speed))
+    ((ConfigOptionFloats,               overhangs_dynamic_speed_percent))
     ((ConfigOptionInt,                  overhangs_speed_enforce))
     ((ConfigOptionFloatOrPercent,       overhangs_width))
     ((ConfigOptionFloatOrPercent,       overhangs_width_speed))

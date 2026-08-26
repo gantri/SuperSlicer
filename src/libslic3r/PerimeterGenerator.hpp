@@ -153,6 +153,22 @@ private:
     ClipperLib_Z::Paths _lower_slices_bridge_speed_small_next_clipperpaths;
     ClipperLib_Z::Paths _lower_slices_bridge_speed_big_next_clipperpaths;
 
+    // Dynamic overhang speed: the (overhang %, speed) table is turned into a list of
+    // nested band boundaries, sorted from least to most overhanging. Boundary i is the
+    // lower layer offset so that a perimeter centerline outside it has more than
+    // _dyn_bounds_percent[i] of its width printing above air. A section falling between
+    // boundary i and boundary i+1 (or beyond the last one) belongs to band i and gets
+    // _dyn_band_speed[i]; _dyn_band_flow[i] additionally applies the overhang bridge
+    // flow (folded in from overhangs_width, which stays a single threshold).
+    bool _dyn_overhangs = false;
+    std::vector<double>  _dyn_bounds_percent;
+    std::vector<float>   _dyn_band_speed;
+    std::vector<bool>    _dyn_band_flow;
+    std::vector<Polygons> _lower_slices_dyn;
+    std::vector<Polygons> _lower_slices_dyn_next;
+    std::vector<ClipperLib_Z::Paths> _lower_slices_dyn_clipperpaths;
+    std::vector<ClipperLib_Z::Paths> _lower_slices_dyn_next_clipperpaths;
+
     //process data
     coord_t perimeter_width; coord_t get_perimeter_width() { return perimeter_width; }
     coord_t perimeter_spacing; coord_t get_perimeter_spacing() { return perimeter_spacing; }
@@ -178,6 +194,10 @@ private:
     void        adjust_flows_to_gap_fill_target();
     ExtrusionPaths create_overhangs(const Polyline& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external = false) const;
     ExtrusionPaths create_overhangs(const ClipperLib_Z::Path& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external = false) const;
+    // Dynamic overhang speed variants: split the loop against the whole band list and
+    // stamp each section's interpolated speed on the path (ExtrusionPath::overhang_speed).
+    ExtrusionPaths create_overhangs_dynamic(const Polyline& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external) const;
+    ExtrusionPaths create_overhangs_dynamic(const ClipperLib_Z::Path& arachne_path, ExtrusionRole role, bool is_external, bool is_next_to_external) const;
 
     // transform loops into ExtrusionEntityCollection, adding also thin walls into it.
     ExtrusionEntityCollection _traverse_loops(const PerimeterGeneratorLoops &loops, ThickPolylines &thin_walls, int count_since_overhang = 0) const;

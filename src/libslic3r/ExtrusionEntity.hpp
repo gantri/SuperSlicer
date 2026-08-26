@@ -229,16 +229,21 @@ public:
     float width;
     // Height of the extrusion, used for visualization purposes. Unscaled
     float height;
+    // Speed in mm/s resolved from the dynamic overhang speed table, set by the
+    // perimeter generator per overhang section. Negative when the feature is off
+    // or the path is not an overhang: the speed then comes from the role's config
+    // option, as usual.
+    float overhang_speed = -1.f;
 
     ExtrusionPath(ExtrusionRole role) : mm3_per_mm(-1), width(-1), height(-1), m_role(role) {}
     ExtrusionPath(ExtrusionRole role, double mm3_per_mm, float width, float height) : mm3_per_mm(mm3_per_mm), width(width), height(height), m_role(role) { assert(mm3_per_mm == mm3_per_mm); assert(width == width); assert(height == height); }
-    ExtrusionPath(const ExtrusionPath& rhs) : polyline(rhs.polyline), mm3_per_mm(rhs.mm3_per_mm), width(rhs.width), height(rhs.height), m_role(rhs.m_role) { assert(mm3_per_mm == mm3_per_mm); assert(width == width); assert(height == height); }
-    ExtrusionPath(ExtrusionPath&& rhs) : polyline(std::move(rhs.polyline)), mm3_per_mm(rhs.mm3_per_mm), width(rhs.width), height(rhs.height), m_role(rhs.m_role) { assert(mm3_per_mm == mm3_per_mm); assert(width == width); assert(height == height); }
-    ExtrusionPath(const PolylineOrArc &polyline, const ExtrusionPath &rhs) : polyline(polyline), mm3_per_mm(rhs.mm3_per_mm), width(rhs.width), height(rhs.height), m_role(rhs.m_role) { assert(mm3_per_mm == mm3_per_mm); assert(width == width); assert(height == height); }
-    ExtrusionPath(PolylineOrArc &&polyline, const ExtrusionPath &rhs) : polyline(std::move(polyline)), mm3_per_mm(rhs.mm3_per_mm), width(rhs.width), height(rhs.height), m_role(rhs.m_role) { assert(mm3_per_mm == mm3_per_mm); assert(width == width); assert(height == height); }
+    ExtrusionPath(const ExtrusionPath& rhs) : polyline(rhs.polyline), mm3_per_mm(rhs.mm3_per_mm), width(rhs.width), height(rhs.height), overhang_speed(rhs.overhang_speed), m_role(rhs.m_role) { assert(mm3_per_mm == mm3_per_mm); assert(width == width); assert(height == height); }
+    ExtrusionPath(ExtrusionPath&& rhs) : polyline(std::move(rhs.polyline)), mm3_per_mm(rhs.mm3_per_mm), width(rhs.width), height(rhs.height), overhang_speed(rhs.overhang_speed), m_role(rhs.m_role) { assert(mm3_per_mm == mm3_per_mm); assert(width == width); assert(height == height); }
+    ExtrusionPath(const PolylineOrArc &polyline, const ExtrusionPath &rhs) : polyline(polyline), mm3_per_mm(rhs.mm3_per_mm), width(rhs.width), height(rhs.height), overhang_speed(rhs.overhang_speed), m_role(rhs.m_role) { assert(mm3_per_mm == mm3_per_mm); assert(width == width); assert(height == height); }
+    ExtrusionPath(PolylineOrArc &&polyline, const ExtrusionPath &rhs) : polyline(std::move(polyline)), mm3_per_mm(rhs.mm3_per_mm), width(rhs.width), height(rhs.height), overhang_speed(rhs.overhang_speed), m_role(rhs.m_role) { assert(mm3_per_mm == mm3_per_mm); assert(width == width); assert(height == height); }
 
-    ExtrusionPath& operator=(const ExtrusionPath& rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; this->polyline = rhs.polyline; return *this; }
-    ExtrusionPath& operator=(ExtrusionPath&& rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; this->polyline = std::move(rhs.polyline); return *this; }
+    ExtrusionPath& operator=(const ExtrusionPath& rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; this->overhang_speed = rhs.overhang_speed; this->polyline = rhs.polyline; return *this; }
+    ExtrusionPath& operator=(ExtrusionPath&& rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; this->overhang_speed = rhs.overhang_speed; this->polyline = std::move(rhs.polyline); return *this; }
 
     virtual ExtrusionPath* clone() const override { return new ExtrusionPath(*this); }
     // Create a new object, initialize it with this object using the move semantics.
@@ -298,10 +303,10 @@ public:
     ExtrusionPath3D(ExtrusionPath3D &&rhs) : ExtrusionPath(rhs), z_offsets(std::move(rhs.z_offsets)) { /*std::cout << "new2 path3D from path3D " << size() << "?" << z_offsets.size()<<"\n";*/ }
     //    ExtrusionPath(ExtrusionRole role, const Flow &flow) : m_role(role), mm3_per_mm(flow.mm3_per_mm()), width(flow.width), height(flow.height), feedrate(0.0f), extruder_id(0) {};
 
-    ExtrusionPath3D& operator=(const ExtrusionPath3D &rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; 
+    ExtrusionPath3D& operator=(const ExtrusionPath3D &rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; this->overhang_speed = rhs.overhang_speed;
         this->polyline = rhs.polyline; z_offsets = rhs.z_offsets; return *this;
     }
-    ExtrusionPath3D& operator=(ExtrusionPath3D &&rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; 
+    ExtrusionPath3D& operator=(ExtrusionPath3D &&rhs) { m_role = rhs.m_role; this->mm3_per_mm = rhs.mm3_per_mm; this->width = rhs.width; this->height = rhs.height; this->overhang_speed = rhs.overhang_speed;
         this->polyline = std::move(rhs.polyline); z_offsets = std::move(rhs.z_offsets); return *this;
     }
     virtual ExtrusionPath3D* clone() const override { return new ExtrusionPath3D(*this); }
