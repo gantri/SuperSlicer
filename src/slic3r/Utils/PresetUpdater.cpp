@@ -258,6 +258,13 @@ Semver get_version(const std::string &str, const std::regex &regexp) {
 // Get Slic3rPE version available online, save in AppConfig.
 void PresetUpdater::priv::sync_version() const
 {
+	// Gantri fork: the fork's releases live in a private repository that the
+	// unauthenticated GitHub API cannot read, and builds are hand-delivered anyway,
+	// so the automatic version check is disabled at the source. If the repository
+	// ever becomes public, removing this return re-enables the check against the
+	// fork's gantri-v* releases (see parse_version_string).
+	return;
+
 	if (! enabled_version_check) { return; }
 
 	BOOST_LOG_TRIVIAL(info) << format("Downloading %1% online version from: `%2%`", SLIC3R_APP_NAME, version_check_url);
@@ -360,7 +367,18 @@ void PresetUpdater::priv::parse_version_string(const std::string& constbody) con
 	//at least two number, use '.' as separator. can be followed by -Az23 for prereleased and +Az42 for metadata
 	std::regex matcher("[0-9]+\\.[0-9]+(\\.[0-9]+)*(-[A-Za-z0-9]+)?(\\+[A-Za-z0-9]+)?");
 
-	Semver current_version(SLIC3R_VERSION_FULL);
+	// The fork versions its releases with gantri-v* tags and stamps that version into
+	// the build id as "+gantri.X.Y.Z"; the SuperSlicer version stays pinned. Compare
+	// the fork version against the fork tags, and skip the check entirely on local
+	// builds, which carry no stamp.
+	const std::string build_id(SLIC3R_BUILD_ID);
+	const std::string gantri_stamp("+gantri.");
+	const size_t gantri_pos = build_id.find(gantri_stamp);
+	if (gantri_pos == std::string::npos)
+		return;
+	Semver current_version = get_version(build_id.substr(gantri_pos + gantri_stamp.size()), matcher);
+	if (current_version == Semver::invalid())
+		return;
 	Semver best_pre(1,0,0,0);
 	Semver best_release(1, 0, 0, 0);
 	std::string best_pre_url;
@@ -368,6 +386,11 @@ void PresetUpdater::priv::parse_version_string(const std::string& constbody) con
 	const std::regex reg_num("([0-9]+)");
 	for (auto json_version : root) {
 		std::string tag = json_version.second.get<std::string>("tag_name");
+		// fork tags look like "gantri-v1.0.3": drop everything before the first digit
+		const size_t first_digit = tag.find_first_of("0123456789");
+		if (first_digit == std::string::npos)
+			continue;
+		tag = tag.substr(first_digit);
 		for (std::regex_iterator it = std::sregex_iterator(tag.begin(), tag.end(), reg_num); it != std::sregex_iterator(); ++it) {
 
 		}
