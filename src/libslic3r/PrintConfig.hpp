@@ -105,6 +105,7 @@ enum class FuzzySkinType {
     None,
     External,
     Shell,
+    Internal,
     All,
 };
 

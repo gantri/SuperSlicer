@@ -318,7 +318,10 @@ ProcessSurfaceResult PerimeterGenerator::process_arachne(int& loop_number, const
     if (this->layer->id() > 0 && this->config->fuzzy_skin != FuzzySkinType::None) {
         std::vector<PerimeterGeneratorArachneExtrusion*> closed_loop_extrusions;
         for (PerimeterGeneratorArachneExtrusion& extrusion : ordered_extrusions)
-            if (extrusion.extrusion->inset_idx == 0 || this->config->fuzzy_skin == FuzzySkinType::All) {
+            // internal perimeters only: everything but inset 0, so the visible surface stays smooth
+            if (this->config->fuzzy_skin == FuzzySkinType::Internal
+                    ? extrusion.extrusion->inset_idx > 0
+                    : (extrusion.extrusion->inset_idx == 0 || this->config->fuzzy_skin == FuzzySkinType::All)) {
                 if (extrusion.extrusion->is_closed && this->config->fuzzy_skin == FuzzySkinType::External) {
                     closed_loop_extrusions.emplace_back(&extrusion);
                 } else {
@@ -1469,16 +1472,19 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& loop_number, const
             }
 
             // fuzzify
-            const bool fuzzify_contours = this->config->fuzzy_skin != FuzzySkinType::None && perimeter_idx == 0 && this->layer->id() > 0;
+            const bool fuzzify_contours = (this->config->fuzzy_skin == FuzzySkinType::External || this->config->fuzzy_skin == FuzzySkinType::Shell)
+                && perimeter_idx == 0 && this->layer->id() > 0;
             const bool fuzzify_holes = this->config->fuzzy_skin == FuzzySkinType::Shell && perimeter_idx == 0 && this->layer->id() > 0 ;
             const bool fuzzify_all = this->config->fuzzy_skin == FuzzySkinType::All && this->layer->id() > 0 ;
+            // internal perimeters only: everything but the external loop, so the visible surface stays smooth
+            const bool fuzzify_internal = this->config->fuzzy_skin == FuzzySkinType::Internal && perimeter_idx > 0 && this->layer->id() > 0;
             for (const ExPolygon& expolygon : next_onion) {
                 //TODO: add width here to allow variable width (if we want to extrude a sightly bigger perimeter, see thin wall)
-                contours[perimeter_idx].emplace_back(expolygon.contour, perimeter_idx, true, has_steep_overhang, fuzzify_contours || fuzzify_all);
+                contours[perimeter_idx].emplace_back(expolygon.contour, perimeter_idx, true, has_steep_overhang, fuzzify_contours || fuzzify_all || fuzzify_internal);
                 if (!expolygon.holes.empty()) {
                     holes[perimeter_idx].reserve(holes[perimeter_idx].size() + expolygon.holes.size());
                     for (const Polygon& hole : expolygon.holes)
-                        holes[perimeter_idx].emplace_back(hole, perimeter_idx, false, has_steep_overhang, fuzzify_holes || fuzzify_all);
+                        holes[perimeter_idx].emplace_back(hole, perimeter_idx, false, has_steep_overhang, fuzzify_holes || fuzzify_all || fuzzify_internal);
                 }
             }
 
