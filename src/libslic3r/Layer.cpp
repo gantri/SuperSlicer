@@ -205,6 +205,7 @@ void Layer::make_perimeters()
                 && config.only_one_perimeter_top_other_algo == other_config.only_one_perimeter_top_other_algo
                 && config.overhangs_width_speed     == other_config.overhangs_width_speed
                 && config.overhangs_width           == other_config.overhangs_width
+                && config.overhangs_extension       == other_config.overhangs_extension
                 && config.overhangs_next_perimeter  == other_config.overhangs_next_perimeter
                 && config.overhangs_dynamic_speed_enabled == other_config.overhangs_dynamic_speed_enabled
                 && config.overhangs_dynamic_speed   == other_config.overhangs_dynamic_speed

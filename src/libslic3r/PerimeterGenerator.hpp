@@ -198,6 +198,10 @@ private:
     // stamp each section's interpolated speed on the path (ExtrusionPath::overhang_speed).
     ExtrusionPaths create_overhangs_dynamic(const Polyline& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external) const;
     ExtrusionPaths create_overhangs_dynamic(const ClipperLib_Z::Path& arachne_path, ExtrusionRole role, bool is_external, bool is_next_to_external) const;
+    // "Extend overhangs": grow every overhang section at both ends into the supported
+    // path next to it, so the speed and flow change happens over solid geometry instead
+    // of exactly at the edge of the overhang.
+    void        extend_overhangs(ExtrusionPaths& paths) const;
 
     // transform loops into ExtrusionEntityCollection, adding also thin walls into it.
     ExtrusionEntityCollection _traverse_loops(const PerimeterGeneratorLoops &loops, ThickPolylines &thin_walls, int count_since_overhang = 0) const;

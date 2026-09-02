@@ -344,6 +344,9 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
 
     toggle_field("only_one_perimeter_first_layer", config->opt_int("perimeters") > 1);
     toggle_field("overhangs_width", config->option<ConfigOptionFloatOrPercent>("overhangs_width_speed")->value > 0);
+    // nothing to extend if no extrusion is ever marked as an overhang
+    toggle_field("overhangs_extension", config->option<ConfigOptionFloatOrPercent>("overhangs_width_speed")->value > 0
+                                     || config->option<ConfigOptionFloatOrPercent>("overhangs_width")->value > 0);
     toggle_field("overhangs_reverse_threshold", have_perimeters && config->opt_bool("overhangs_reverse"));
     toggle_field("min_width_top_surface", have_perimeters && config->opt_bool("only_one_perimeter_top") && !have_arachne);
     toggle_field("thin_perimeters_all", have_perimeters && config->option("thin_perimeters")->getFloat() != 0 && !have_arachne);

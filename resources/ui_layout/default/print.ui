@@ -58,6 +58,9 @@ group:label_width$12:Overhangs
 		setting:label$Bridge speed and fan:width$5:sidetext_width$0:overhangs_width_speed
 		setting:label_width$12:label$Bridge flow:width$5:overhangs_width
 	end_line
+	line:Extend overhangs
+		setting:label$_:label_width$0:width$5:overhangs_extension
+	end_line
 	setting:overhangs_next_perimeter
 	setting:overhangs_speed_enforce
 	line:Extrusion direction

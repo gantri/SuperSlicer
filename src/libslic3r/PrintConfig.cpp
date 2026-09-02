@@ -4020,6 +4020,21 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comSuSi;
     def->set_default_value(new ConfigOptionFloatOrPercent(75, true));
 
+    def = this->add("overhangs_extension", coFloatOrPercent);
+    def->label = L("Extension");
+    def->full_label = L("Overhangs: extra extension");
+    def->category = OptionCategory::perimeter;
+    def->tooltip = L("Extend both ends of every overhang section by this amount, into the supported perimeter next to it."
+        " The overhang speed and flow then start before the overhang itself, which anchors it instead of switching speed right at the edge."
+        "\nAn overhang that goes all the way around a loop has no supported section to extend into, so it is left as is."
+        "\nCan be a % of the perimeter width. Set to 0 to deactivate.");
+    def->ratio_over = "perimeter_width";
+    def->sidetext = L("mm or %");
+    def->min = 0;
+    def->max_literal = { 50, true };
+    def->mode = comExpert | comSuSi;
+    def->set_default_value(new ConfigOptionFloatOrPercent{ 0, false });
+
     def = this->add("overhangs_next_perimeter", coBool);
     def->label = L("Extend to adjacent perimeter");
     def->full_label = L("Extend overhangs to the adjacent perimeter");
@@ -7830,6 +7845,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "overhangs_dynamic_speed_percent",
 "overhangs_speed_enforce",
 "overhangs_width_speed",
+"overhangs_extension",
 "perimeter_bonding",
 "perimeter_extrusion_multiplier",
 "perimeter_extrusion_spacing",

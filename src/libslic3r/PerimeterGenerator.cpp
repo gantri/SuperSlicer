@@ -2118,6 +2118,70 @@ ProcessSurfaceResult PerimeterGenerator::process_classic(int& loop_number, const
 }
 
 
+// An overhang section that starts exactly where the geometry stops being supported makes the
+// printer change speed on the very first millimeter it has nothing under it. Give each overhang
+// section a bit of the supported path next to it, so the change happens over solid ground and the
+// overhang is anchored into it. A section that goes all the way around a loop has no supported
+// neighbour to take from, so it is left alone.
+void PerimeterGenerator::extend_overhangs(ExtrusionPaths& paths) const
+{
+    const coordf_t extension = scale_d(this->config->overhangs_extension.get_abs_value(this->perimeter_flow.width()));
+    if (extension <= SCALED_EPSILON || paths.size() < 2)
+        return;
+
+    auto is_overhang = [](const ExtrusionPath& path) { return path.role() == erOverhangPerimeter; };
+    const size_t nb = paths.size();
+    // on a closed loop the last path also borders the first one
+    const bool is_loop = paths.front().first_point().coincides_with_epsilon(paths.back().last_point());
+    // never eat a whole supported path: leave at least one line width of it behind
+    const coordf_t min_remaining = this->perimeter_flow.scaled_width();
+
+    // what each supported path can give away at each of its ends that borders an overhang
+    std::vector<coordf_t> give(nb, 0.);
+    for (size_t i = 0; i < nb; ++i) {
+        if (is_overhang(paths[i]))
+            continue;
+        int ends = 0;
+        if ((i > 0 || is_loop) && is_overhang(paths[i == 0 ? nb - 1 : i - 1]))
+            ++ends;
+        if ((i + 1 < nb || is_loop) && is_overhang(paths[i + 1 == nb ? 0 : i + 1]))
+            ++ends;
+        if (ends > 0)
+            give[i] = std::min(extension, (paths[i].length() - min_remaining) / ends);
+    }
+
+    // move `len` of polyline across the boundary, from the supported path to the overhang one
+    auto move_boundary = [](ExtrusionPath& before, ExtrusionPath& after, coordf_t len, bool donor_is_before) {
+        if (donor_is_before) {
+            // the tail of `before` becomes the head of `after`
+            PolylineOrArc moved = before.polyline;
+            moved.clip_start(moved.length() - len);
+            moved.append(after.polyline);
+            after.polyline.swap(moved);
+            before.polyline.clip_end(len);
+        } else {
+            // the head of `after` becomes the tail of `before`
+            PolylineOrArc moved = after.polyline;
+            moved.clip_end(moved.length() - len);
+            before.polyline.append(moved);
+            after.polyline.clip_start(len);
+        }
+    };
+
+    const size_t nb_boundaries = is_loop ? nb : nb - 1;
+    for (size_t i = 0; i < nb_boundaries; ++i) {
+        ExtrusionPath& before = paths[i];
+        ExtrusionPath& after = paths[i + 1 == nb ? 0 : i + 1];
+        const bool before_is_overhang = is_overhang(before);
+        // only overhang <-> supported boundaries, never one overhang speed band into the next
+        if (before_is_overhang == is_overhang(after))
+            continue;
+        const coordf_t len = before_is_overhang ? give[i + 1 == nb ? 0 : i + 1] : give[i];
+        if (len > SCALED_EPSILON)
+            move_boundary(before, after, len, !before_is_overhang);
+    }
+}
+
 ExtrusionPaths PerimeterGenerator::create_overhangs(const Polyline& loop_polygons, ExtrusionRole role, bool is_external, bool is_next_to_external) const {
     if (this->_dyn_overhangs)
         return this->create_overhangs_dynamic(loop_polygons, role, is_external, is_next_to_external);
@@ -2424,6 +2488,8 @@ ExtrusionPaths PerimeterGenerator::create_overhangs(const Polyline& loop_polygon
     for (ExtrusionPath& path : paths) {
         path.height = path.height < 3 ? (float)this->layer->height : this->overhang_flow.height();
     }
+
+    this->extend_overhangs(paths);
 
     return paths;
 }
@@ -2757,6 +2823,8 @@ ExtrusionPaths PerimeterGenerator::create_overhangs(const ClipperLib_Z::Path& ar
         path.height = path.height < 3 ? (float)this->layer->height : this->overhang_flow.height();
     }
 
+    this->extend_overhangs(paths);
+
     return paths;
 }
 
@@ -2900,6 +2968,8 @@ ExtrusionPaths PerimeterGenerator::create_overhangs_dynamic(const Polyline& loop
         int band = int(path.height) - 1;
         path.height = (band >= 0 && this->_dyn_band_flow[band]) ? this->overhang_flow.height() : (float)this->layer->height;
     }
+
+    this->extend_overhangs(paths);
 
     return paths;
 }
@@ -3053,6 +3123,8 @@ ExtrusionPaths PerimeterGenerator::create_overhangs_dynamic(const ClipperLib_Z::
         int band = int(path.height) - 1;
         path.height = (band >= 0 && this->_dyn_band_flow[band]) ? this->overhang_flow.height() : (float)this->layer->height;
     }
+
+    this->extend_overhangs(paths);
 
     return paths;
 }
