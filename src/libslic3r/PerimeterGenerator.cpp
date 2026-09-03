@@ -3190,7 +3190,11 @@ static void fuzzy_paths(ExtrusionPaths& paths, coordf_t fuzzy_skin_thickness, co
                 dist_next_point = p0pa_dist - p0p1_size;
                 p0 = p1;
             } else {
+                // No new point lands on this segment, but the walk still has to follow the
+                // contour: without advancing p0 the next point is placed on a chord spanning
+                // every segment skipped since, which cuts across curves.
                 dist_next_point -= p0p1_size;
+                p0 = p1;
             }
         }
         if (out.size() <= 1) {
