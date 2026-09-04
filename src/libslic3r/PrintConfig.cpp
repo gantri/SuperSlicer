@@ -1843,6 +1843,21 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionPercents{ 100 });
 
+    def = this->add("gradient_extrusion_multiplier", coPercents);
+    def->label = L("Gradient extrusion multiplier");
+    def->full_label = L("Gradient extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Two extrusion multipliers: the first one is used on the first layer of the height range,"
+        " the second one on its last layer. Every layer in between gets a value interpolated linearly"
+        " between the two, so the flow fades across the zone instead of stepping at its edges."
+        "\nOnly has an effect inside a height range modifier: a shape modifier has no first and last layer"
+        " to fade between."
+        "\nLeave both at 100% to deactivate.");
+    def->sidetext = L("%");
+    def->mode = comExpert | comSuSi;
+    def->min = 2;
+    def->set_default_value(new ConfigOptionPercents{ 100, 100 });
+
     def = this->add("print_extrusion_multiplier", coPercent);
     def->label = L("Extrusion multiplier");
     def->category = OptionCategory::filament;
@@ -7952,6 +7967,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "perimeter_overlap",
 "perimeter_round_corners",
 "print_extrusion_multiplier",
+"gradient_extrusion_multiplier",
 "print_retract_length",
 "print_retract_lift",
 "print_temperature",

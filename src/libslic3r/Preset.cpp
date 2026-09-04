@@ -710,6 +710,7 @@ static std::vector<std::string> s_Preset_print_options {
         "curve_smoothing_angle_convex",
         "curve_smoothing_angle_concave",
         "print_extrusion_multiplier",
+        "gradient_extrusion_multiplier",
         "perimeter_extrusion_multiplier",
         "external_perimeter_extrusion_multiplier",
         "print_retract_length",

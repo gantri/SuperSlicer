@@ -206,7 +206,7 @@ static const Selection& get_selection()
 
 //				  category ->	         	vector 			 ( option	;  label )
 typedef std::map< Slic3r::OptionCategory, std::vector< std::pair<std::string, std::string> > > FullSettingsHierarchy;
-static void get_full_settings_hierarchy(FullSettingsHierarchy& settings_menu, const bool is_part)
+static void get_full_settings_hierarchy(FullSettingsHierarchy& settings_menu, const bool is_part, const bool is_layer_range)
 {
     std::vector<std::string> options = SettingsFactory::get_options(is_part);
 
@@ -218,6 +218,10 @@ static void get_full_settings_hierarchy(FullSettingsHierarchy& settings_menu, co
         const ConfigOptionDef* opt = config.def()->get(option);
         OptionCategory category = opt->category;
         if (is_improper_category(category, extruders_cnt, !is_part))
+            continue;
+        // the gradient fades the flow from the first to the last layer of a height range, so it is
+        // only offered there: a shape modifier has no first and last layer to fade between.
+        if (!is_layer_range && boost::starts_with(option, "gradient_extrusion_multiplier"))
             continue;
 
         const std::string& label = opt->get_full_label();
@@ -319,8 +323,9 @@ static wxMenu* create_settings_popupmenu(wxMenu* parent_menu, const bool is_obje
 {
     wxMenu* menu = new wxMenu;
 
+    const bool is_layer_range = (obj_list()->GetModel()->GetItemType(item) & itLayer) != 0;
     FullSettingsHierarchy categories;
-    get_full_settings_hierarchy(categories, !is_object_settings);
+    get_full_settings_hierarchy(categories, !is_object_settings, is_layer_range);
     // sort by lexicographic order
     for (auto& cat2idname : categories) {
         std::sort(cat2idname.second.begin(), cat2idname.second.end(),

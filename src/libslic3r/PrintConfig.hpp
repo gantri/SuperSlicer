@@ -913,6 +913,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     // Total number of perimeters.
     ((ConfigOptionInt,                  perimeters))
     ((ConfigOptionPercent,              print_extrusion_multiplier))
+    ((ConfigOptionPercents,             gradient_extrusion_multiplier))
     ((ConfigOptionFloat,                print_retract_length))
     ((ConfigOptionFloat,                print_retract_lift))
     ((ConfigOptionFloatOrPercent,       small_perimeter_speed))

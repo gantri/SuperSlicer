@@ -6131,9 +6131,52 @@ std::string GCode::set_extruder(uint16_t extruder_id, double print_z, bool no_to
 }
 
 // convert a model-space scaled point into G-code coordinates
+// "Gradient extrusion multiplier": where the current layer sits inside its height range modifier,
+// as 0 on the first layer of the range and 1 on the last one. Returns -1 when there is no height
+// range modifier around this layer, which is the only place the gradient means anything: a shape
+// modifier has no first and last layer to fade between.
+static double layer_range_gradient_position(const Layer *layer)
+{
+    if (layer == nullptr)
+        return -1.;
+    const PrintObject *object = layer->object();
+    if (object == nullptr)
+        return -1.;
+    const PrintObjectRegions *regions = object->shared_regions();
+    if (regions == nullptr)
+        return -1.;
+    for (const PrintObjectRegions::LayerRangeRegions &range : regions->layer_ranges) {
+        // a range only carries a config when the user put a height range modifier on it
+        if (range.config == nullptr)
+            continue;
+        if (layer->print_z <= range.layer_height_range.first + EPSILON ||
+            layer->print_z >  range.layer_height_range.second + EPSILON)
+            continue;
+        // walk the object's layers to find where this one falls among the range's own layers
+        int first = -1, last = -1, current = -1;
+        int idx = 0;
+        for (const Layer *l : object->layers()) {
+            if (l->print_z > range.layer_height_range.first + EPSILON &&
+                l->print_z <= range.layer_height_range.second + EPSILON) {
+                if (first < 0)
+                    first = idx;
+                last = idx;
+                if (l == layer)
+                    current = idx;
+            }
+            ++idx;
+        }
+        if (current < 0 || last <= first)
+            return 0.;
+        return double(current - first) / double(last - first);
+    }
+    return -1.;
+}
+
 // "Separated extrusion multiplier": each line type carries its own flow tweak, so a wall can be
 // over-extruded without the infill beside it getting the same treatment. Multiplied on top of the
-// global filament extrusion multiplier; the line types Jason left out keep 100%.
+// global filament extrusion multiplier; the line types Jason left out keep 100%. The gradient of
+// the surrounding height range modifier, if there is one, rides on top of both.
 double GCode::extrusion_multiplier_for(ExtrusionRole role) const
 {
     const Tool *tool = m_writer.tool();
@@ -6151,7 +6194,18 @@ double GCode::extrusion_multiplier_for(ExtrusionRole role) const
     case erTopSolidInfill:    opt = &this->config().extrusion_multiplier_top_infill; break;
     default:                  return 1.;
     }
-    return opt->get_at(extruder) * 0.01;
+    double multiplier = opt->get_at(extruder) * 0.01;
+
+    const double t = layer_range_gradient_position(m_layer);
+    if (t >= 0.) {
+        const ConfigOptionPercents &grad = this->config().gradient_extrusion_multiplier;
+        if (grad.size() >= 2) {
+            const double bottom = grad.get_at(0) * 0.01;
+            const double top    = grad.get_at(1) * 0.01;
+            multiplier *= bottom + (top - bottom) * t;
+        }
+    }
+    return multiplier;
 }
 
 Vec2d GCode::point_to_gcode(const Point &point) const
