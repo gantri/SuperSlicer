@@ -736,7 +736,7 @@ static std::vector<std::string> s_Preset_filament_options {
         "filament_max_speed",
         "filament_max_volumetric_speed",
         "filament_max_wipe_tower_speed",
-        "extrusion_multiplier", "filament_density", "filament_cost", "filament_spool_weight", "filament_loading_speed", "filament_loading_speed_start", "filament_load_time",
+        "extrusion_multiplier", "extrusion_multiplier_perimeter", "extrusion_multiplier_external_perimeter", "extrusion_multiplier_overhang", "extrusion_multiplier_gap_fill", "extrusion_multiplier_infill", "extrusion_multiplier_solid_infill", "extrusion_multiplier_top_infill", "filament_density", "filament_cost", "filament_spool_weight", "filament_loading_speed", "filament_loading_speed_start", "filament_load_time",
         "filament_unloading_speed", "filament_toolchange_delay", "filament_unloading_speed_start", "filament_unload_time", "filament_cooling_moves",
         "filament_cooling_initial_speed", "filament_cooling_final_speed", "filament_ramming_parameters", "filament_minimal_purge_on_wipe_tower",
         "filament_max_overlap",

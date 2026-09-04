@@ -3685,7 +3685,8 @@ std::string GCode::extrude_loop_vase(const ExtrusionLoop &original_loop, const s
                 * m_writer.tool()->e_per_mm3()
                 * this->config().print_extrusion_multiplier.get_abs_value(1)
                 * (path->role() == erPerimeter ? this->config().perimeter_extrusion_multiplier.get_abs_value(1) :
-                   path->role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.);
+                   path->role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.)
+                * this->extrusion_multiplier_for(path->role());
             if (m_writer.extrusion_axis().empty())
                 e_per_mm_per_height = 0;
             //extrude
@@ -4663,7 +4664,8 @@ std::string GCode::extrude_multi_path3D(const ExtrusionMultiPath3D &multipath3D,
             * m_writer.tool()->e_per_mm3()
             * this->config().print_extrusion_multiplier.get_abs_value(1)
             * (path.role() == erPerimeter ? this->config().perimeter_extrusion_multiplier.get_abs_value(1) :
-           path.role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.);
+               path.role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.)
+            * this->extrusion_multiplier_for(path.role());
         if (m_writer.extrusion_axis().empty()) e_per_mm = 0;
         double path_length = 0.;
         {
@@ -4781,7 +4783,8 @@ std::string GCode::extrude_path_3D(const ExtrusionPath3D &path, const std::strin
         * m_writer.tool()->e_per_mm3()
         * this->config().print_extrusion_multiplier.get_abs_value(1)
         * (path.role() == erPerimeter ? this->config().perimeter_extrusion_multiplier.get_abs_value(1) :
-           path.role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.);
+           path.role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.)
+        * this->extrusion_multiplier_for(path.role());
     if (m_writer.extrusion_axis().empty()) e_per_mm = 0;
     double path_length = 0.;
     {
@@ -5120,7 +5123,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, const std::string &descri
         * m_writer.tool()->e_per_mm3()
         * this->config().print_extrusion_multiplier.get_abs_value(1)
         * (path.role() == erPerimeter ? this->config().perimeter_extrusion_multiplier.get_abs_value(1) :
-           path.role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.);
+           path.role() == erExternalPerimeter ? this->config().external_perimeter_extrusion_multiplier.get_abs_value(1) : 1.)
+        * this->extrusion_multiplier_for(path.role());
     if (m_layer->bottom_z() < EPSILON) e_per_mm *= this->config().first_layer_flow_ratio.get_abs_value(1);
     if (m_writer.extrusion_axis().empty()) e_per_mm = 0;
     path.polyline.ensure_fitting_result_valid();
@@ -6127,6 +6131,29 @@ std::string GCode::set_extruder(uint16_t extruder_id, double print_z, bool no_to
 }
 
 // convert a model-space scaled point into G-code coordinates
+// "Separated extrusion multiplier": each line type carries its own flow tweak, so a wall can be
+// over-extruded without the infill beside it getting the same treatment. Multiplied on top of the
+// global filament extrusion multiplier; the line types Jason left out keep 100%.
+double GCode::extrusion_multiplier_for(ExtrusionRole role) const
+{
+    const Tool *tool = m_writer.tool();
+    if (tool == nullptr)
+        return 1.;
+    const uint16_t extruder = tool->id();
+    const ConfigOptionPercents *opt = nullptr;
+    switch (role) {
+    case erPerimeter:         opt = &this->config().extrusion_multiplier_perimeter; break;
+    case erExternalPerimeter: opt = &this->config().extrusion_multiplier_external_perimeter; break;
+    case erOverhangPerimeter: opt = &this->config().extrusion_multiplier_overhang; break;
+    case erGapFill:           opt = &this->config().extrusion_multiplier_gap_fill; break;
+    case erInternalInfill:    opt = &this->config().extrusion_multiplier_infill; break;
+    case erSolidInfill:       opt = &this->config().extrusion_multiplier_solid_infill; break;
+    case erTopSolidInfill:    opt = &this->config().extrusion_multiplier_top_infill; break;
+    default:                  return 1.;
+    }
+    return opt->get_at(extruder) * 0.01;
+}
+
 Vec2d GCode::point_to_gcode(const Point &point) const
 {
     Vec2d extruder_offset = EXTRUDER_CONFIG_WITH_DEFAULT(extruder_offset, Vec2d(0, 0)); //FIXME : mill ofsset

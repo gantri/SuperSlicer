@@ -1752,6 +1752,97 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionFloats { 1. });
 
+    def = this->add("extrusion_multiplier_perimeter", coPercents);
+    def->label = L("Internal perimeter");
+    def->full_label = L("Internal perimeter extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Changes the amount of flow proportionally, but only for internal perimeter lines. "
+        "Every other line type keeps its own value. "
+        "It is applied on top of the global extrusion multiplier above.");
+    def->sidetext = L("%");
+    def->mode = comSimpleAE | comSuSi;
+    def->min = 2;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionPercents{ 100 });
+
+    def = this->add("extrusion_multiplier_external_perimeter", coPercents);
+    def->label = L("External perimeter");
+    def->full_label = L("External perimeter extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Changes the amount of flow proportionally, but only for external perimeter lines. "
+        "Every other line type keeps its own value. "
+        "It is applied on top of the global extrusion multiplier above.");
+    def->sidetext = L("%");
+    def->mode = comSimpleAE | comSuSi;
+    def->min = 2;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionPercents{ 100 });
+
+    def = this->add("extrusion_multiplier_overhang", coPercents);
+    def->label = L("Overhang perimeter");
+    def->full_label = L("Overhang perimeter extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Changes the amount of flow proportionally, but only for overhang perimeter lines. "
+        "Every other line type keeps its own value. "
+        "It is applied on top of the global extrusion multiplier above.");
+    def->sidetext = L("%");
+    def->mode = comSimpleAE | comSuSi;
+    def->min = 2;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionPercents{ 100 });
+
+    def = this->add("extrusion_multiplier_gap_fill", coPercents);
+    def->label = L("Gap fill");
+    def->full_label = L("Gap fill extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Changes the amount of flow proportionally, but only for gap fill lines. "
+        "Every other line type keeps its own value. "
+        "It is applied on top of the global extrusion multiplier above.");
+    def->sidetext = L("%");
+    def->mode = comSimpleAE | comSuSi;
+    def->min = 2;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionPercents{ 100 });
+
+    def = this->add("extrusion_multiplier_infill", coPercents);
+    def->label = L("Internal infill");
+    def->full_label = L("Internal infill extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Changes the amount of flow proportionally, but only for internal (sparse) infill lines. "
+        "Every other line type keeps its own value. "
+        "It is applied on top of the global extrusion multiplier above.");
+    def->sidetext = L("%");
+    def->mode = comSimpleAE | comSuSi;
+    def->min = 2;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionPercents{ 100 });
+
+    def = this->add("extrusion_multiplier_solid_infill", coPercents);
+    def->label = L("Solid infill");
+    def->full_label = L("Solid infill extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Changes the amount of flow proportionally, but only for solid infill lines. "
+        "Every other line type keeps its own value. "
+        "It is applied on top of the global extrusion multiplier above.");
+    def->sidetext = L("%");
+    def->mode = comSimpleAE | comSuSi;
+    def->min = 2;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionPercents{ 100 });
+
+    def = this->add("extrusion_multiplier_top_infill", coPercents);
+    def->label = L("Top solid infill");
+    def->full_label = L("Top solid infill extrusion multiplier");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Changes the amount of flow proportionally, but only for top solid infill lines. "
+        "Every other line type keeps its own value. "
+        "It is applied on top of the global extrusion multiplier above.");
+    def->sidetext = L("%");
+    def->mode = comSimpleAE | comSuSi;
+    def->min = 2;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionPercents{ 100 });
+
     def = this->add("print_extrusion_multiplier", coPercent);
     def->label = L("Extrusion multiplier");
     def->category = OptionCategory::filament;
@@ -7742,6 +7833,13 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "external_perimeter_acceleration",
 "external_perimeter_cut_corners",
 "external_perimeter_extrusion_multiplier",
+"extrusion_multiplier_perimeter",
+"extrusion_multiplier_external_perimeter",
+"extrusion_multiplier_overhang",
+"extrusion_multiplier_gap_fill",
+"extrusion_multiplier_infill",
+"extrusion_multiplier_solid_infill",
+"extrusion_multiplier_top_infill",
 "external_perimeter_extrusion_spacing",
 "external_perimeter_fan_speed",
 "external_perimeter_overlap",

@@ -94,6 +94,13 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver& /* ne
         "extruder_fan_offset"
         "extruder_temperature_offset",
         "extrusion_multiplier",
+        "extrusion_multiplier_perimeter",
+        "extrusion_multiplier_external_perimeter",
+        "extrusion_multiplier_overhang",
+        "extrusion_multiplier_gap_fill",
+        "extrusion_multiplier_infill",
+        "extrusion_multiplier_solid_infill",
+        "extrusion_multiplier_top_infill",
         "fan_always_on",
         "fan_below_layer_time",
         "fan_kickstart",
