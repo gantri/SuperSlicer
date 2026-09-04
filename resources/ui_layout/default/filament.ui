@@ -7,6 +7,18 @@ group:filament_spool_weight_event:Filament
 	setting:filament_density
 	setting:filament_cost
 	setting:filament_spool_weight
+group:sidetext_width$2:Extrusion multiplier per line type
+	line:Perimeters
+		setting:label$Internal:width$5:extrusion_multiplier_perimeter
+		setting:label$External:width$5:extrusion_multiplier_external_perimeter
+		setting:label$Overhang:width$5:extrusion_multiplier_overhang
+	end_line
+	line:Infill
+		setting:label$Internal:width$5:extrusion_multiplier_infill
+		setting:label$Solid:width$5:extrusion_multiplier_solid_infill
+		setting:label$Top solid:width$5:extrusion_multiplier_top_infill
+	end_line
+	setting:label$Gap fill:width$5:extrusion_multiplier_gap_fill
 group:Temperature °C
 	line:Extruder
 		setting:first_layer_temperature

@@ -171,6 +171,9 @@ public:
     Vec3d           point_to_gcode(const Point &point, coord_t z_offset) const;
     Point           gcode_to_point(const Vec2d &point) const;
     const FullPrintConfig &config() const { return m_config; }
+    // "Separated extrusion multiplier": the flow tweak that belongs to one line type,
+    // on top of the global filament extrusion multiplier. 100% leaves the line as it is.
+    double          extrusion_multiplier_for(ExtrusionRole role) const;
     const Layer*    layer() const { return m_layer; }
     GCodeWriter&    writer() { return m_writer; }
     const GCodeWriter& writer() const { return m_writer; }
