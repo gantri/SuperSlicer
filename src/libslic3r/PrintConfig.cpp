@@ -1843,20 +1843,33 @@ void PrintConfigDef::init_fff_params()
     def->is_vector_extruder = true;
     def->set_default_value(new ConfigOptionPercents{ 100 });
 
-    def = this->add("gradient_extrusion_multiplier", coPercents);
-    def->label = L("Gradient extrusion multiplier");
-    def->full_label = L("Gradient extrusion multiplier");
+    def = this->add("gradient_extrusion_multiplier_first_layer", coPercent);
+    def->label = L("Gradient extrusion multiplier: first layer");
+    def->full_label = L("Gradient extrusion multiplier: first layer");
     def->category = OptionCategory::filament;
-    def->tooltip = L("Two extrusion multipliers: the first one is used on the first layer of the height range,"
-        " the second one on its last layer. Every layer in between gets a value interpolated linearly"
-        " between the two, so the flow fades across the zone instead of stepping at its edges."
-        "\nOnly has an effect inside a height range modifier: a shape modifier has no first and last layer"
-        " to fade between."
+    def->tooltip = L("Extrusion multiplier used on the first layer of the height range."
+        " Every layer up to the last one gets a value interpolated linearly towards the last layer"
+        " multiplier, so the flow fades across the zone instead of stepping at its edges."
+        " Only has an effect inside a height range modifier: a shape modifier has no first and last layer to fade between."
         "\nLeave both at 100% to deactivate.");
     def->sidetext = L("%");
     def->mode = comExpert | comSuSi;
     def->min = 2;
-    def->set_default_value(new ConfigOptionPercents{ 100, 100 });
+    def->set_default_value(new ConfigOptionPercent(100));
+
+    def = this->add("gradient_extrusion_multiplier_last_layer", coPercent);
+    def->label = L("Gradient extrusion multiplier: last layer");
+    def->full_label = L("Gradient extrusion multiplier: last layer");
+    def->category = OptionCategory::filament;
+    def->tooltip = L("Extrusion multiplier used on the last layer of the height range."
+        " Every layer down to the first one gets a value interpolated linearly towards the first layer"
+        " multiplier, so the flow fades across the zone instead of stepping at its edges."
+        " Only has an effect inside a height range modifier: a shape modifier has no first and last layer to fade between."
+        "\nLeave both at 100% to deactivate.");
+    def->sidetext = L("%");
+    def->mode = comExpert | comSuSi;
+    def->min = 2;
+    def->set_default_value(new ConfigOptionPercent(100));
 
     def = this->add("print_extrusion_multiplier", coPercent);
     def->label = L("Extrusion multiplier");
@@ -7967,7 +7980,8 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "perimeter_overlap",
 "perimeter_round_corners",
 "print_extrusion_multiplier",
-"gradient_extrusion_multiplier",
+"gradient_extrusion_multiplier_first_layer",
+"gradient_extrusion_multiplier_last_layer",
 "print_retract_length",
 "print_retract_lift",
 "print_temperature",

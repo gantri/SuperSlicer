@@ -6198,12 +6198,9 @@ double GCode::extrusion_multiplier_for(ExtrusionRole role) const
 
     const double t = layer_range_gradient_position(m_layer);
     if (t >= 0.) {
-        const ConfigOptionPercents &grad = this->config().gradient_extrusion_multiplier;
-        if (grad.size() >= 2) {
-            const double bottom = grad.get_at(0) * 0.01;
-            const double top    = grad.get_at(1) * 0.01;
-            multiplier *= bottom + (top - bottom) * t;
-        }
+        const double first = this->config().gradient_extrusion_multiplier_first_layer.get_abs_value(1);
+        const double last  = this->config().gradient_extrusion_multiplier_last_layer.get_abs_value(1);
+        multiplier *= first + (last - first) * t;
     }
     return multiplier;
 }
