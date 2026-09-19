@@ -5686,8 +5686,12 @@ std::string GCode::_before_extrude(const ExtrusionPath &path, const std::string 
             gcode += ";_TOP_FAN_START\n";
         else if (ExtrusionRole::erSupportMaterialInterface == path.role())
             gcode += ";_SUPP_INTER_FAN_START\n";
-        else
+        else {
+            // Support keeps its speed adjustable by the cooling slowdown, the fan marker only comes on top.
+            if (ExtrusionRole::erSupportMaterial == path.role())
+                gcode += ";_SUPP_FAN_START\n";
             comment = ";_EXTRUDE_SET_SPEED";
+        }
         if (path.role() == erExternalPerimeter)
             comment += ";_EXTERNAL_PERIMETER";
         if (path.role() == erThinWall)
@@ -5710,8 +5714,11 @@ std::string GCode::_after_extrude(const ExtrusionPath &path) {
             gcode += ";_TOP_FAN_END\n";
         else if (ExtrusionRole::erSupportMaterialInterface == path.role())
             gcode += ";_SUPP_INTER_FAN_END\n";
-        else
+        else {
+            if (ExtrusionRole::erSupportMaterial == path.role())
+                gcode += ";_SUPP_FAN_END\n";
             gcode += ";_EXTRUDE_END\n";
+        }
 
     if (path.role() != ExtrusionRole::erGapFill ) {
         m_last_notgapfill_extrusion_role = path.role();

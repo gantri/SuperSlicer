@@ -8,6 +8,7 @@
 #include "Layer.hpp"
 #include "MutablePolygon.hpp"
 #include "SupportMaterial.hpp"
+#include "Support/TreeSupport.hpp"
 #include "Surface.hpp"
 #include "Slicing.hpp"
 #include "Tesselate.hpp"
@@ -22,6 +23,7 @@
 #include <string_view>
 #include <utility>
 
+#include <boost/algorithm/string/predicate.hpp>
 #include <boost/log/trivial.hpp>
 
 #include <tbb/parallel_for.h>
@@ -917,6 +919,7 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "support_material_interface_angle"
                 || opt_key == "support_material_interface_angle_increment"
                 || opt_key == "support_material_interface_pattern"
+                || opt_key == "support_material_bottom_interface_pattern"
                 || opt_key == "support_material_interface_contact_loops"
                 || opt_key == "support_material_interface_extruder"
                 || opt_key == "support_material_interface_spacing"
@@ -928,7 +931,8 @@ bool PrintObject::invalidate_state_by_config_options(
                 || opt_key == "support_material_closing_radius"
                 || opt_key == "support_material_synchronize_layers"
                 || opt_key == "support_material_threshold"
-                || opt_key == "support_material_with_sheath") {
+                || opt_key == "support_material_with_sheath"
+                || boost::starts_with(opt_key, "support_tree_")) {
                 steps.emplace_back(posSupportMaterial);
             } else if (opt_key == "bottom_solid_layers") {
                 steps.emplace_back(posPrepareInfill);
@@ -3173,8 +3177,13 @@ PrintRegionConfig region_config_from_model_volume(const PrintRegionConfig &defau
 
     void PrintObject::_generate_support_material()
     {
-        PrintObjectSupportMaterial support_material(this, m_slicing_params);
-        support_material.generate(*this);
+        if (this->has_support() && (m_config.support_material_style.value == smsTree || m_config.support_material_style.value == smsOrganic)) {
+            fff_tree_support_generate(*this, std::function<void()>([this](){ this->throw_if_canceled(); }));
+        } else {
+            // Grid and snug keep using the original generator, so existing projects slice exactly as before.
+            PrintObjectSupportMaterial support_material(this, m_slicing_params);
+            support_material.generate(*this);
+        }
     }
 
 static void project_triangles_to_slabs(ConstLayerPtrsAdaptor layers, const indexed_triangle_set &custom_facets, const Transform3f &tr, bool seam, std::vector<Polygons> &out)
