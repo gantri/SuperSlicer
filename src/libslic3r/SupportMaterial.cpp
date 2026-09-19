@@ -435,6 +435,8 @@ PrintObjectSupportMaterial::PrintObjectSupportMaterial(const PrintObject *object
             m_support_params.contact_fill_pattern = ipRectilinear;
         else
             m_support_params.contact_fill_pattern = ipSupportBase;
+    m_support_params.contact_bottom_fill_pattern = m_object_config->support_material_bottom_interface_pattern.value == ipAuto ?
+        m_support_params.contact_fill_pattern : m_object_config->support_material_bottom_interface_pattern.value;
 }
 
 // Using the std::deque as an allocator.
@@ -4287,6 +4289,9 @@ void PrintObjectSupportMaterial::generate_toolpaths(
         size_t idx_layer_base_interface   = size_t(-1);
         const InfillPattern fill_type_first_layer    = ipRectiWithPerimeter;
         std::unique_ptr<Fill> filler_interface       = std::unique_ptr<Fill>(Fill::new_from_type(m_support_params.contact_fill_pattern));
+        // Only a separate filler when the bottom contacts use another pattern, so the default output is unchanged.
+        std::unique_ptr<Fill> filler_bottom_interface = std::unique_ptr<Fill>(m_support_params.contact_bottom_fill_pattern == m_support_params.contact_fill_pattern ?
+            nullptr : Fill::new_from_type(m_support_params.contact_bottom_fill_pattern));
         std::unique_ptr<Fill> filler_intermediate_interface = std::unique_ptr<Fill>(Fill::new_from_type(ipRectilinear));
         // Filler for the base interface (to be used for soluble interface / non soluble base, to produce non soluble interface layer below soluble interface layer).
         std::unique_ptr<Fill> filler_base_interface  = std::unique_ptr<Fill>(base_interface_layers.empty() ? nullptr : 
@@ -4300,6 +4305,8 @@ void PrintObjectSupportMaterial::generate_toolpaths(
             filler_support.reset(Fill::new_from_type(m_support_params.base_fill_pattern));
         }
         filler_interface->set_bounding_box(bbox_object);
+        if (filler_bottom_interface)
+            filler_bottom_interface->set_bounding_box(bbox_object);
         filler_intermediate_interface->set_bounding_box(bbox_object);
         if (range.begin() == 0)
             filler_first_layer_ptr->set_bounding_box(bbox_object);
@@ -4400,7 +4407,8 @@ void PrintObjectSupportMaterial::generate_toolpaths(
                 Flow interface_flow = layer_ex.layer->bridging ?
                     Flow::bridging_flow(layer_ex.layer->height, m_support_params.support_material_bottom_interface_flow.nozzle_diameter()) :
                     (interface_as_base ? &m_support_params.support_material_flow : &m_support_params.support_material_interface_flow)->with_height(float(layer_ex.layer->height));
-                Fill *filler = i == 2 ? filler_intermediate_interface.get() : filler_interface.get();
+                Fill *filler = i == 2 ? filler_intermediate_interface.get() :
+                    (i == 1 && filler_bottom_interface) ? filler_bottom_interface.get() : filler_interface.get();
                 //filler->layer_id = support_layer_id; // don't do that, or the filler will rotate thigns from that layerid
                 filler->z = support_layer.print_z;
                 float supp_density = m_support_params.interface_density;

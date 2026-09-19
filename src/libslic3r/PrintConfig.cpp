@@ -188,7 +188,9 @@ CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SupportMaterialPattern)
 
 static const t_config_enum_values s_keys_map_SupportMaterialStyle {
     { "grid",           smsGrid },
-    { "snug",           smsSnug }
+    { "snug",           smsSnug },
+    { "tree",           smsTree },
+    { "organic",        smsOrganic }
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SupportMaterialStyle)
 
@@ -5484,12 +5486,26 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comSuSi;
     def->set_default_value(new ConfigOptionFloat(0));
 
+    def = this->add("support_material_fan_speed", coInts);
+    def->label = L("Support material fan speed");
+    def->category = OptionCategory::cooling;
+    def->tooltip = L("This fan speed is enforced during all support moves (the support interfaces use their own fan speed if it is set)."
+        "\nSet to 0 to stop the fan."
+        "\nSet to -1 to disable this override."
+        "\nCan only be overriden by disable_fan_first_layers.");
+    def->sidetext = L("%");
+    def->min = -1;
+    def->max = 100;
+    def->mode = comExpert | comSuSi;
+    def->is_vector_extruder = true;
+    def->set_default_value(new ConfigOptionInts{ -1 });
+
     def = this->add("support_material_interface_fan_speed", coInts);
     def->label = L("Support interface fan speed");
     def->category = OptionCategory::cooling;
     def->tooltip = L("This fan speed is enforced during all support interfaces, to be able to weaken their bonding with a high fan speed."
         "\nSet to 1 to disable the fan."
-        "\nSet to -1 to disable this override."
+        "\nSet to -1 to disable this override: the support material fan speed is used if set, the default fan speed otherwise."
         "\nCan only be overriden by disable_fan_first_layers.");
     def->sidetext = L("%");
     def->min = -1;
@@ -5634,6 +5650,29 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionEnum<InfillPattern>(ipRectilinear));
 
+    def = this->add("support_material_bottom_interface_pattern", coEnum);
+    def->label = L("Bottom pattern");
+    def->full_label = L("Support bottom interface pattern");
+    def->category = OptionCategory::support;
+    def->tooltip = L("Pattern for the bottom interface layers (the ones that start on the object)."
+        "\nSame as top uses the support interface pattern, as before this setting existed."
+        "\nNote that 'Hilbert' and 'Ironing' patterns are meant to be used with soluble supports and 100% fill interface layer.");
+    def->enum_keys_map = &ConfigOptionEnum<InfillPattern>::get_enum_values();
+    def->enum_values.push_back("auto");
+    def->enum_values.push_back("rectilinear");
+    def->enum_values.push_back("monotonic");
+    def->enum_values.push_back("concentric");
+    def->enum_values.push_back("hilbertcurve");
+    def->enum_values.push_back("smooth");
+    def->enum_labels.push_back(L("Same as top"));
+    def->enum_labels.push_back(L("Rectilinear"));
+    def->enum_labels.push_back(L("Monotonic"));
+    def->enum_labels.push_back(L("Concentric"));
+    def->enum_labels.push_back(L("Hilbert Curve"));
+    def->enum_labels.push_back(L("Ironing"));
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionEnum<InfillPattern>(ipAuto));
+
     def = this->add("support_material_layer_height", coFloatOrPercent);
     def->label = L("Support layer height");
     def->category = OptionCategory::support;
@@ -5674,14 +5713,113 @@ void PrintConfigDef::init_fff_params()
     def->category = OptionCategory::support;
     def->tooltip = L("Style and shape of the support towers. Projecting the supports into a regular grid "
         "will create more stable supports, while snug support towers will save material and reduce "
-        "object scarring.");
+        "object scarring. Organic supports grow branches from the build plate up to the overhangs, "
+        "avoiding the model on the way.");
     def->enum_keys_map = &ConfigOptionEnum<SupportMaterialStyle>::get_enum_values();
     def->enum_values.push_back("grid");
     def->enum_values.push_back("snug");
+    def->enum_values.push_back("organic");
     def->enum_labels.push_back(L("Grid"));
     def->enum_labels.push_back(L("Snug"));
+    def->enum_labels.push_back(L("Organic"));
     def->mode = comAdvancedE | comPrusa;
     def->set_default_value(new ConfigOptionEnum<SupportMaterialStyle>(smsGrid));
+
+    def = this->add("support_tree_angle", coFloat);
+    def->label = L("Maximum Branch Angle");
+    def->category = OptionCategory::support;
+    // TRN PrintSettings: "Organic supports" > "Maximum Branch Angle"
+    def->tooltip = L("The maximum angle of the branches, when the branches have to avoid the model. "
+                     "Use a lower angle to make them more vertical and more stable. Use a higher angle to be able to have more reach.");
+    def->sidetext = L("°");
+    def->min = 0;
+    def->max = 85;
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(40));
+
+    def = this->add("support_tree_angle_slow", coFloat);
+    def->label = L("Preferred Branch Angle");
+    def->category = OptionCategory::support;
+    // TRN PrintSettings: "Organic supports" > "Preferred Branch Angle"
+    def->tooltip = L("The preferred angle of the branches, when they do not have to avoid the model. "
+                     "Use a lower angle to make them more vertical and more stable. Use a higher angle for branches to merge faster.");
+    def->sidetext = L("°");
+    def->min = 10;
+    def->max = 85;
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(25));
+
+    def = this->add("support_tree_tip_diameter", coFloat);
+    def->label = L("Tip Diameter");
+    def->category = OptionCategory::support;
+    // TRN PrintSettings: "Organic supports" > "Tip Diameter"
+    def->tooltip = L("Branch tip diameter for organic supports.");
+    def->sidetext = L("mm");
+    def->min = 0.1f;
+    def->max = 100.f;
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(0.8));
+
+    def = this->add("support_tree_branch_diameter", coFloat);
+    def->label = L("Branch Diameter");
+    def->category = OptionCategory::support;
+    // TRN PrintSettings: "Organic supports" > "Branch Diameter"
+    def->tooltip = L("The diameter of the thinnest branches of organic support. Thicker branches are more sturdy. "
+                     "Branches towards the base will be thicker than this.");
+    def->sidetext = L("mm");
+    def->min = 0.1f;
+    def->max = 100.f;
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(2));
+
+    def = this->add("support_tree_branch_diameter_angle", coFloat);
+    def->label = L("Branch Diameter Angle");
+    def->category = OptionCategory::support;
+    // TRN PrintSettings: "Organic supports" > "Branch Diameter Angle"
+    def->tooltip = L("The angle of the branches' diameter as they gradually become thicker towards the bottom. "
+                     "An angle of 0 will cause the branches to have uniform thickness over their length. "
+                     "A bit of an angle can increase stability of the organic support.");
+    def->sidetext = L("°");
+    def->min = 0;
+    def->max = 15;
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(5));
+
+    def = this->add("support_tree_branch_diameter_double_wall", coFloat);
+    def->label = L("Branch Diameter with double walls");
+    def->category = OptionCategory::support;
+    // TRN PrintSettings: "Organic supports" > "Branch Diameter"
+    def->tooltip = L("Branches with area larger than the area of a circle of this diameter will be printed with double walls for stability. "
+                     "Set this value to zero for no double walls.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->max = 100.f;
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(3));
+
+    def = this->add("support_tree_branch_distance", coFloat);
+    def->label = L("Branch Distance");
+    def->category = OptionCategory::support;
+    // TRN PrintSettings: "Organic supports" > "Branch Distance"
+    def->tooltip = L("How far apart the branches need to be when they touch the model. "
+                     "Making this distance small will cause the tree support to touch the model at more points, "
+                     "causing better overhang but making support harder to remove.");
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionFloat(1.));
+
+    def = this->add("support_tree_top_rate", coPercent);
+    def->label = L("Branch Density");
+    def->category = OptionCategory::support;
+    // TRN PrintSettings: "Organic supports" > "Branch Density"
+    def->tooltip = L("Adjusts the density of the support structure used to generate the tips of the branches. "
+                     "A higher value results in better overhangs but the supports are harder to remove, "
+                     "thus it is recommended to enable top support interfaces instead of a high branch density value "
+                     "if dense interfaces are needed.");
+    def->sidetext = L("%");
+    def->min = 5;
+    def->max_literal = {35, false};
+    def->mode = comAdvancedE | comPrusa;
+    def->set_default_value(new ConfigOptionPercent(15));
 
     def = this->add("support_material_synchronize_layers", coBool);
     def->label = L("Synchronize with object layers");
@@ -7675,7 +7813,8 @@ void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &va
 
     // In PrusaSlicer 2.3.0-alpha0 the "monotonic" infill was introduced, which was later renamed to "monotonous".
     if (value == "monotonous" && (opt_key == "top_fill_pattern" || opt_key == "bottom_fill_pattern" || opt_key == "fill_pattern"
-            || opt_key == "solid_fill_pattern" || opt_key == "bridge_fill_pattern" || opt_key == "support_material_interface_pattern"))
+            || opt_key == "solid_fill_pattern" || opt_key == "bridge_fill_pattern" || opt_key == "support_material_interface_pattern"
+            || opt_key == "support_material_bottom_interface_pattern"))
         value = "monotonic";
     // some changes has occurs between rectilineargapfill and monotonicgapfill. Set them at the right value for each type
     if (value == "rectilineargapfill" && (opt_key == "top_fill_pattern" || opt_key == "bottom_fill_pattern" || opt_key == "fill_pattern" || opt_key == "support_material_interface_pattern"))
@@ -8016,9 +8155,11 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "support_material_interface_acceleration",
 "support_material_interface_angle",
 "support_material_interface_angle_increment",
+"support_material_fan_speed",
 "support_material_interface_fan_speed",
 "support_material_interface_layer_height",
 "support_material_interface_pattern",
+"support_material_bottom_interface_pattern",
 "support_material_layer_height",
 "thin_perimeters_all",
 "thin_perimeters",

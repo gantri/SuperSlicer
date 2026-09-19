@@ -250,6 +250,21 @@ add_library(libslic3r STATIC
     Subdivide.hpp
     SupportMaterial.cpp
     SupportMaterial.hpp
+    Support/SupportCommon.cpp
+    Support/SupportCommon.hpp
+    Support/SupportDebug.cpp
+    Support/SupportDebug.hpp
+    Support/SupportLayer.hpp
+    Support/SupportParameters.cpp
+    Support/SupportParameters.hpp
+    Support/OrganicSupport.cpp
+    Support/OrganicSupport.hpp
+    Support/TreeSupport.cpp
+    Support/TreeSupport.hpp
+    Support/TreeSupportCommon.cpp
+    Support/TreeSupportCommon.hpp
+    Support/TreeModelVolumes.cpp
+    Support/TreeModelVolumes.hpp
     Surface.cpp
     Surface.hpp
     SurfaceCollection.cpp

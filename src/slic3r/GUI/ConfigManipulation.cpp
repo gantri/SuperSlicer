@@ -467,14 +467,31 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig* config)
     toggle_field("support_material_bottom_contact_distance", have_support_material && ! have_support_soluble);
     toggle_field("support_material_closing_radius", have_support_material && support_material_style == smsSnug);
 
+    const bool has_organic_supports = support_material_style == smsOrganic &&
+                                     (config->opt_bool("support_material") ||
+                                      config->opt_int("support_material_enforce_layers") > 0);
+    for (const std::string& key : { "support_tree_angle", "support_tree_angle_slow", "support_tree_branch_diameter",
+                                    "support_tree_branch_diameter_angle", "support_tree_branch_diameter_double_wall",
+                                    "support_tree_tip_diameter", "support_tree_branch_distance", "support_tree_top_rate" })
+        toggle_field(key, has_organic_supports);
+
     for (auto el : { "support_material_contact_distance", "support_material_bottom_contact_distance" })
         toggle_field(el, have_support_material && !have_support_soluble);
 
-    for (auto el : { "support_material_interface_pattern", "support_material_interface_spacing", "support_material_interface_extruder",
+    for (auto el : { "support_material_interface_pattern", "support_material_bottom_interface_pattern", "support_material_interface_spacing", "support_material_interface_extruder",
                     "support_material_interface_speed", "support_material_interface_contact_loops", "support_material_interface_layer_height"
                     "support_material_interface_angle", "support_material_interface_angle_increment"})
         toggle_field(el, have_support_material && have_support_interface);
     toggle_field("support_material_synchronize_layers", have_support_soluble);
+
+    // Organic supports don't use these fields, grey them out.
+    if (has_organic_supports) {
+        for (const std::string &key :
+             {"support_material_interface_layer_height", "support_material_interface_contact_loops", "support_material_with_sheath",
+              "support_material_pattern", "support_material_spacing", "support_material_angle", "support_material_angle_height",
+              "support_material_layer_height"})
+            toggle_field(key, false);
+    }
 
     toggle_field("perimeter_extrusion_width", have_perimeters || have_brim);
     toggle_field("perimeter_extrusion_spacing", have_perimeters || have_brim);

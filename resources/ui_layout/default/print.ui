@@ -307,6 +307,7 @@ group:Options for support material interface
 	setting:support_material_interface_layer_height
 	line:Pattern
 		setting:support_material_interface_pattern
+		setting:label$Bottom:support_material_bottom_interface_pattern
 		setting:label$Interface spacing:support_material_interface_spacing
 	end_line
 	line:Pattern Angle
@@ -318,6 +319,21 @@ group:Options for support material interface
 		setting:support_material_bottom_interface_layers
 	end_line
 	setting:support_material_interface_contact_loops
+group:Organic supports
+	line:Tree Branch angle
+		setting:label$Maximum:support_tree_angle
+		setting:label$Preferred:support_tree_angle_slow
+	end_line
+	line:Branch diameter
+		setting:label$_:support_tree_branch_diameter
+		setting:label$Angle:support_tree_branch_diameter_angle
+		setting:support_tree_tip_diameter
+	end_line
+	setting:support_tree_branch_diameter_double_wall
+	line:Branch
+		setting:label$Distance:support_tree_branch_distance
+		setting:label$Density:support_tree_top_rate
+	end_line
 
 page:Speed:time
 group:label_width$8:sidetext_width$7:Speed for print moves

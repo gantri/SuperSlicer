@@ -208,6 +208,18 @@ template<class T> size_t next_highest_power_of_2(T v,
     return next_highest_power_of_2(uint32_t(v));
 }
 
+template<class VectorType> void reserve_power_of_2(VectorType &vector, size_t n)
+{
+    vector.reserve(next_highest_power_of_2(n));
+}
+
+// Return dividend divided by divisor rounded up.
+template<typename INDEX_TYPE>
+inline INDEX_TYPE round_up_divide(const INDEX_TYPE dividend, const INDEX_TYPE divisor)
+{
+    return (dividend + divisor - 1) / divisor;
+}
+
 template<typename INDEX_TYPE>
 inline INDEX_TYPE prev_idx_modulo(INDEX_TYPE idx, const INDEX_TYPE count)
 {

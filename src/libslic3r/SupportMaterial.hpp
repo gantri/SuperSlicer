@@ -150,6 +150,8 @@ public:
 	    InfillPattern           base_fill_pattern;
 	    InfillPattern           interface_fill_pattern;
 	    InfillPattern 			contact_fill_pattern;
+	    // Pattern of the bottom contact layers. Same as contact_fill_pattern unless the user picked another one.
+	    InfillPattern 			contact_bottom_fill_pattern;
 	    bool                    with_sheath;
 	};
 

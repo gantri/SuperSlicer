@@ -384,6 +384,8 @@ Slic3r::Lines _clipper_ln(ClipperLib::ClipType clipType, const Slic3r::Lines &su
 // Safety offset is applied to the clipping polygons only.
 Slic3r::Polygons   diff(const Slic3r::Polygon &subject, const Slic3r::Polygon &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
 Slic3r::Polygons   diff(const Slic3r::Polygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
+// Same result as diff(), only drops the clipping polygons that are far outside of the subject first (used by the tree supports).
+Slic3r::Polygons   diff_clipped(const Slic3r::Polygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
 Slic3r::Polygons   diff(const Slic3r::Polygons &subject, const Slic3r::ExPolygons &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
 Slic3r::Polygons   diff(const Slic3r::ExPolygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
 Slic3r::Polygons   diff(const Slic3r::ExPolygons &subject, const Slic3r::ExPolygons &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
@@ -416,6 +418,8 @@ inline Slic3r::Lines diff_ln(const Slic3r::Lines &subject, const Slic3r::Polygon
 // Safety offset is applied to the clipping polygons only.
 Slic3r::Polygons   intersection(const Slic3r::Polygon &subject, const Slic3r::Polygon &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
 Slic3r::Polygons   intersection(const Slic3r::Polygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
+// Same result as intersection(), only drops the clipping polygons that are far outside of the subject first (used by the tree supports).
+Slic3r::Polygons   intersection_clipped(const Slic3r::Polygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
 Slic3r::Polygons   intersection(const Slic3r::ExPolygon &subject, const Slic3r::ExPolygon &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
 Slic3r::Polygons   intersection(const Slic3r::ExPolygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);
 Slic3r::Polygons   intersection(const Slic3r::ExPolygons &subject, const Slic3r::ExPolygons &clip, ApplySafetyOffset do_safety_offset = ApplySafetyOffset::No);

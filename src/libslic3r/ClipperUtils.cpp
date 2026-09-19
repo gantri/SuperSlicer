@@ -632,6 +632,23 @@ Slic3r::Polygons intersection(const Slic3r::Polygon &subject, const Slic3r::Poly
     { return _clipper(ClipperLib::ctIntersection, ClipperUtils::SinglePathProvider(subject.points), ClipperUtils::SinglePathProvider(clip.points), do_safety_offset); }
 Slic3r::Polygons intersection(const Slic3r::Polygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset)
     { return _clipper(ClipperLib::ctIntersection, ClipperUtils::PolygonsProvider(subject), ClipperUtils::PolygonsProvider(clip), do_safety_offset); }
+
+// Keep only the clipping polygons whose bounding box touches the subject: the others cannot change
+// a difference or an intersection with it, they only make Clipper slower.
+static Slic3r::Polygons clip_polygons_near_subject(const Slic3r::Polygons &subject, const Slic3r::Polygons &clip)
+{
+    Slic3r::BoundingBox bbox = get_extents(subject);
+    bbox.offset(SCALED_EPSILON);
+    Slic3r::Polygons out;
+    for (const Slic3r::Polygon &p : clip)
+        if (get_extents(p).overlap(bbox))
+            out.emplace_back(p);
+    return out;
+}
+Slic3r::Polygons diff_clipped(const Slic3r::Polygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset)
+    { return diff(subject, clip_polygons_near_subject(subject, clip), do_safety_offset); }
+Slic3r::Polygons intersection_clipped(const Slic3r::Polygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset)
+    { return intersection(subject, clip_polygons_near_subject(subject, clip), do_safety_offset); }
 Slic3r::Polygons intersection(const Slic3r::ExPolygon &subject, const Slic3r::ExPolygon &clip, ApplySafetyOffset do_safety_offset)
     { return _clipper(ClipperLib::ctIntersection, ClipperUtils::ExPolygonProvider(subject), ClipperUtils::ExPolygonProvider(clip), do_safety_offset); }
 Slic3r::Polygons intersection(const Slic3r::ExPolygons &subject, const Slic3r::Polygons &clip, ApplySafetyOffset do_safety_offset)

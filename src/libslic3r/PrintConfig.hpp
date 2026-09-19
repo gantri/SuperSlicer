@@ -152,6 +152,8 @@ enum SupportMaterialPattern {
 enum SupportMaterialStyle {
     smsGrid,
     smsSnug,
+    smsTree,
+    smsOrganic,
 };
 
 //from prusa, not used in superslicer as InfillPattern is enough.
@@ -768,6 +770,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,                support_material_interface_spacing))
     ((ConfigOptionFloatOrPercent,       support_material_interface_speed))
     ((ConfigOptionEnum<InfillPattern>,  support_material_interface_pattern))
+    ((ConfigOptionEnum<InfillPattern>,  support_material_bottom_interface_pattern))
     ((ConfigOptionEnum<SupportMaterialPattern>,  support_material_pattern))
     // Morphological closing of support areas. Only used for "sung" supports.
     ((ConfigOptionFloat,                support_material_closing_radius))
@@ -779,6 +782,14 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionBool,                 support_material_synchronize_layers))
     // Overhang angle threshold.
     ((ConfigOptionInt,                  support_material_threshold))
+    ((ConfigOptionFloat,                support_tree_angle))
+    ((ConfigOptionFloat,                support_tree_angle_slow))
+    ((ConfigOptionFloat,                support_tree_branch_diameter))
+    ((ConfigOptionFloat,                support_tree_branch_diameter_angle))
+    ((ConfigOptionFloat,                support_tree_branch_diameter_double_wall))
+    ((ConfigOptionPercent,              support_tree_top_rate))
+    ((ConfigOptionFloat,                support_tree_branch_distance))
+    ((ConfigOptionFloat,                support_tree_tip_diameter))
     ((ConfigOptionBool,                 support_material_with_sheath))
     ((ConfigOptionFloatOrPercent,       support_material_xy_spacing))
     ((ConfigOptionBool,                 thin_walls_merge))
@@ -1233,6 +1244,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionInt,                  standby_temperature_delta))
     ((ConfigOptionFloatOrPercent,       support_material_acceleration))
     ((ConfigOptionFloatOrPercent,       support_material_interface_acceleration))
+    ((ConfigOptionInts,                 support_material_fan_speed))
     ((ConfigOptionInts,                 support_material_interface_fan_speed))
     ((ConfigOptionInts,                 temperature))
     ((ConfigOptionFloatOrPercent,       thin_walls_acceleration))

@@ -69,6 +69,8 @@ struct CoolingLine
         //BBS: add G2 G3 type
         TYPE_G2                 = 1 << 20,
         TYPE_G3                 = 1 << 21,
+        TYPE_SUPP_FAN_START     = 1 << 22,
+        TYPE_SUPP_FAN_END       = 1 << 23,
         // Would be TYPE_ADJUSTABLE, but the block of G-code lines has zero extrusion length, thus the block
         // cannot have its speed adjusted. This should not happen (sic!).
         TYPE_ADJUSTABLE_EMPTY   = 1 << 12,
@@ -577,6 +579,10 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
             line.type = CoolingLine::TYPE_SUPP_INTER_FAN_START;
         } else if (boost::starts_with(sline, ";_SUPP_INTER_FAN_END")) {
             line.type = CoolingLine::TYPE_SUPP_INTER_FAN_END;
+        } else if (boost::starts_with(sline, ";_SUPP_FAN_START")) {
+            line.type = CoolingLine::TYPE_SUPP_FAN_START;
+        } else if (boost::starts_with(sline, ";_SUPP_FAN_END")) {
+            line.type = CoolingLine::TYPE_SUPP_FAN_END;
         } else if (boost::starts_with(sline, "G4 ")) {
             // Parse the wait time.
             line.type = CoolingLine::TYPE_G4;
@@ -832,6 +838,8 @@ std::string CoolingBuffer::apply_layer_cooldown(
     int  top_fan_speed = 0;
     bool supp_inter_fan_control = false;
     int  supp_inter_fan_speed = 0;
+    bool supp_fan_control = false;
+    int  supp_fan_speed = 0;
     bool ext_peri_fan_control = false;
     int  ext_peri_fan_speed = 0;
 #define EXTRUDER_CONFIG(OPT) m_config.OPT.get_at(m_current_extruder)
@@ -839,12 +847,17 @@ std::string CoolingBuffer::apply_layer_cooldown(
         &bridge_fan_control, &bridge_fan_speed, &bridge_internal_fan_control, &bridge_internal_fan_speed, 
         &top_fan_control, &top_fan_speed,
         &ext_peri_fan_control, &ext_peri_fan_speed,
-        &supp_inter_fan_control, &supp_inter_fan_speed]() {
+        &supp_inter_fan_control, &supp_inter_fan_speed,
+        &supp_fan_control, &supp_fan_speed]() {
         int min_fan_speed = EXTRUDER_CONFIG(min_fan_speed);
         bridge_fan_speed = EXTRUDER_CONFIG(bridge_fan_speed);
         bridge_internal_fan_speed = EXTRUDER_CONFIG(bridge_internal_fan_speed);
         top_fan_speed = EXTRUDER_CONFIG(top_fan_speed);
         supp_inter_fan_speed = EXTRUDER_CONFIG(support_material_interface_fan_speed);
+        supp_fan_speed = EXTRUDER_CONFIG(support_material_fan_speed);
+        // Without its own override, the support interface follows the support material fan speed.
+        if (supp_inter_fan_speed < 0)
+            supp_inter_fan_speed = supp_fan_speed;
         ext_peri_fan_speed = EXTRUDER_CONFIG(external_perimeter_fan_speed);
         // 0 is deprecated for disable: take care of temp settings.
         if (bridge_fan_speed == 0) bridge_fan_speed = -1;
@@ -911,6 +924,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
             bridge_internal_fan_control = bridge_internal_fan_speed > fan_speed_new && bridge_internal_fan_speed >= 0;
             top_fan_control = top_fan_speed != fan_speed_new && top_fan_speed >= 0;
             supp_inter_fan_control = supp_inter_fan_speed != fan_speed_new && supp_inter_fan_speed >= 0;
+            supp_fan_control = supp_fan_speed != fan_speed_new && supp_fan_speed >= 0;
             ext_peri_fan_control = ext_peri_fan_speed != fan_speed_new && ext_peri_fan_speed >= 0;
             // if bridge_internal_fan is disabled, it takes the value of bridge_fan_control
             // if bridge_internal_fan_speed is too low, it takes the value of fan_speed_new
@@ -931,6 +945,8 @@ std::string CoolingBuffer::apply_layer_cooldown(
             top_fan_speed      = 0;
             supp_inter_fan_control = false;
             supp_inter_fan_speed = 0;
+            supp_fan_control = false;
+            supp_fan_speed = 0;
             ext_peri_fan_control = false;
             ext_peri_fan_speed = 0;
             fan_speed_new      = 0;
@@ -1004,6 +1020,16 @@ std::string CoolingBuffer::apply_layer_cooldown(
             if (supp_inter_fan_control || current_fan_sections.find(CoolingLine::TYPE_SUPP_INTER_FAN_START) != current_fan_sections.end()) {
                 fan_need_set = true;
                 current_fan_sections.erase(CoolingLine::TYPE_SUPP_INTER_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_SUPP_FAN_START) {
+            if (supp_fan_control && current_fan_sections.find(CoolingLine::TYPE_SUPP_FAN_START) == current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.insert(CoolingLine::TYPE_SUPP_FAN_START);
+            }
+        } else if (line->type & CoolingLine::TYPE_SUPP_FAN_END) {
+            if (supp_fan_control || current_fan_sections.find(CoolingLine::TYPE_SUPP_FAN_START) != current_fan_sections.end()) {
+                fan_need_set = true;
+                current_fan_sections.erase(CoolingLine::TYPE_SUPP_FAN_START);
             }
         } else if (line->type & CoolingLine::TYPE_EXTRUDE_END) {
             if (ext_peri_fan_control || current_fan_sections.find(CoolingLine::TYPE_EXTERNAL_PERIMETER) != current_fan_sections.end()) {
@@ -1105,6 +1131,8 @@ std::string CoolingBuffer::apply_layer_cooldown(
                 new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, top_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
             else if (current_fan_sections.find(CoolingLine::TYPE_SUPP_INTER_FAN_START) != current_fan_sections.end())
                 new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, supp_inter_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
+            else if (current_fan_sections.find(CoolingLine::TYPE_SUPP_FAN_START) != current_fan_sections.end())
+                new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, supp_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
             else if (current_fan_sections.find(CoolingLine::TYPE_EXTERNAL_PERIMETER) != current_fan_sections.end())
                 new_gcode  += GCodeWriter::set_fan(m_config.gcode_flavor, m_config.gcode_comments, ext_peri_fan_speed, EXTRUDER_CONFIG(extruder_fan_offset), m_config.fan_percentage);
             else

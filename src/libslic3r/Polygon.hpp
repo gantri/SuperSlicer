@@ -12,6 +12,9 @@ namespace Slic3r {
 
 class Polygon;
 using Polygons          = std::vector<Polygon>;
+
+// Returns true if p is inside the polygons (even-odd rule). Returns border_result if p is on a boundary.
+bool contains(const Polygons &polygons, const Point &p, bool border_result = true);
 using PolygonPtrs       = std::vector<Polygon*>;
 using ConstPolygonPtrs  = std::vector<const Polygon*>;
 
@@ -138,6 +141,15 @@ inline void polygons_append(Polygons &dst, Polygons &&src)
         src.clear();
     }
 }
+
+// Simplify with Douglas-Peucker, then let Clipper resolve self-intersections, keeping the orientation of holes.
+// Used by the organic / tree support generator.
+Polygons polygons_simplify(Polygons &&polys, double tolerance, bool strictly_simple);
+Polygons polygons_simplify(const Polygons &polys, double tolerance, bool strictly_simple);
+
+// Circle centered at the origin, approximated by a polygon deviating at most `error` from the true circle.
+Polygon make_circle(double radius, double error);
+Polygon make_circle_num_segments(double radius, size_t num_segments);
 
 inline Polygons polygons_simplify(const Polygons &polys, double tolerance)
 {

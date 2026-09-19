@@ -84,6 +84,14 @@ public:
 	template<typename SourceNode>
 	void build(std::vector<SourceNode> &&input)
 	{
+		this->build_modify_input(input);
+        input.clear();
+	}
+
+	// Same as build(), but the input is kept: it is only reordered to follow the leaves of the tree.
+	template<typename SourceNode>
+	void build_modify_input(std::vector<SourceNode> &input)
+	{
         if (input.empty())
 			clear();
 		else {
@@ -91,7 +99,6 @@ public:
             m_nodes.assign(next_highest_power_of_2(input.size()) * 2 - 1, Node());
             build_recursive(input, 0, 0, input.size() - 1);
 		}
-        input.clear();
 	}
 
 	const std::vector<Node>& 	nodes() const { return m_nodes; }
