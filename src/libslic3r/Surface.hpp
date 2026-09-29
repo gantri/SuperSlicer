@@ -148,6 +148,8 @@ public:
     bool has_pos_bottom() const;
     bool has_mod_bridge() const;
     bool has_mod_overBridge() const;
+    // True if all the flags of `type` are set.
+    bool has(SurfaceType type) const { return (this->surface_type & type) == type; }
 };
 
 typedef std::vector<Surface> Surfaces;

@@ -415,6 +415,79 @@ void export_group_fills_to_svg(const char *path, const std::vector<SurfaceFill> 
 #endif
 
 // friend to Layer
+// Same filler setup as make_fills(), restricted to the sparse infill. Patterns that need data only prepared
+// later (adaptive / support cubic octrees, lightning) are skipped: bridges over them anchor to the fill boundaries.
+Polylines Layer::generate_sparse_infill_polylines_for_anchoring() const
+{
+    std::vector<SurfaceFill>  surface_fills       = group_fills(*this);
+    const Slic3r::BoundingBox bbox                = this->object()->bounding_box();
+    const auto                perimeter_generator = this->object()->config().perimeter_generator;
+
+    Polylines sparse_infill_polylines;
+    for (SurfaceFill &surface_fill : surface_fills) {
+        if (! surface_fill.surface.has(stPosInternal | stDensSparse))
+            continue;
+        switch (surface_fill.params.pattern) {
+        case ipAdaptiveCubic:
+        case ipSupportCubic:
+        case ipLightning:
+        case ipSupportBase:
+        case ipCount:
+            continue;
+        default:
+            break;
+        }
+        const LayerRegion *layerm = m_regions[surface_fill.region_id];
+
+        std::unique_ptr<Fill> f = std::unique_ptr<Fill>(Fill::new_from_type(surface_fill.params.pattern));
+        f->set_bounding_box(bbox);
+        f->layer_id = this->id();
+        f->z        = this->print_z;
+        f->angle    = surface_fill.params.angle;
+        if (perimeter_generator.value == PerimeterGeneratorType::Arachne && surface_fill.params.pattern == ipConcentric) {
+            FillConcentric *fill_concentric = dynamic_cast<FillConcentric *>(f.get());
+            assert(fill_concentric != nullptr);
+            fill_concentric->print_config        = &this->object()->print()->config();
+            fill_concentric->print_object_config = &this->object()->config();
+        }
+        f->init_spacing(surface_fill.params.spacing, surface_fill.params);
+        double link_max_length = 0.;
+        if (! surface_fill.params.flow.bridge() && surface_fill.params.density > .8)
+            link_max_length = 3. * f->get_spacing();
+        f->link_max_length = (coord_t)scale_(link_max_length);
+        const float perimeter_spacing = layerm->flow(frPerimeter).spacing();
+        f->loop_clipping = scale_t(layerm->region().config().get_computed_value("seam_gap", surface_fill.params.extruder - 1) * surface_fill.params.flow.nozzle_diameter());
+        surface_fill.params.use_arachne  = perimeter_generator == PerimeterGeneratorType::Arachne && surface_fill.params.pattern == ipConcentric;
+        surface_fill.params.layer_height = layerm->layer()->height;
+
+        surface_fill.expolygons = union_safety_offset_ex(surface_fill.expolygons);
+        for (ExPolygon &expoly : surface_fill.expolygons) {
+            f->no_overlap_expolygons.clear();
+            if (surface_fill.params.config->perimeters > 0) {
+                f->overlap = surface_fill.params.config->infill_overlap.get_abs_value((perimeter_spacing + (f->get_spacing())) / 2);
+                if (f->overlap != 0)
+                    f->no_overlap_expolygons = intersection_ex(layerm->fill_no_overlap_expolygons, ExPolygons() = { expoly });
+                else
+                    f->no_overlap_expolygons.push_back(expoly);
+            } else {
+                f->overlap = 0;
+                f->no_overlap_expolygons.push_back(expoly);
+            }
+            if (expoly.contour.empty())
+                continue;
+            surface_fill.surface.expolygon = std::move(expoly);
+            ExtrusionEntityCollection coll;
+            try {
+                f->fill_surface_extrusion(&surface_fill.surface, surface_fill.params, coll.set_entities());
+            } catch (InfillFailedException &) {
+                continue;
+            }
+            append(sparse_infill_polylines, to_polylines(coll.as_polylines()));
+        }
+    }
+    return sparse_infill_polylines;
+}
+
 void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree, FillLightning::Generator* lightning_generator)
 {
     for (LayerRegion* layerm : m_regions) {

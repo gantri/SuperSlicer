@@ -395,6 +395,7 @@ private:
     void process_external_surfaces();
     void discover_vertical_shells();
     void bridge_over_infill();
+    void bridge_over_infill_anchored();
     void replaceSurfaceType(SurfaceType st_to_replace, SurfaceType st_replacement, SurfaceType st_under_it);
     void clip_fill_surfaces();
     void tag_under_bridge();

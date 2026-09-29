@@ -691,6 +691,7 @@ static std::vector<std::string> s_Preset_print_options {
         "wipe_tower_no_sparse_layers",
         "compatible_printers", "compatible_printers_condition", "inherits", 
         "infill_dense", "infill_dense_algo",
+        "internal_bridge_expansion",
         "no_perimeter_unsupported_algo",
         "exact_last_layer_height",
         "perimeter_loop",
