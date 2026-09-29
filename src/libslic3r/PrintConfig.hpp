@@ -886,6 +886,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionBool,                 infill_dense))
     ((ConfigOptionEnum<DenseInfillAlgo>,  infill_dense_algo))
     ((ConfigOptionBool,                 infill_first))
+    ((ConfigOptionBool,                 internal_bridge_expansion))
     // Ironing options
     ((ConfigOptionBool,                 ironing))
     ((ConfigOptionFloat,                ironing_angle))

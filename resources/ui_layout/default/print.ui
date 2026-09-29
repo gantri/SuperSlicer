@@ -207,6 +207,7 @@ group:Reducing printing time
 		setting:width$20:infill_dense_algo
 	end_line
 group:sidetext_width$5:Advanced
+	setting:internal_bridge_expansion
 	setting:solid_infill_every_layers
 	setting:solid_infill_below_area
 	line:Angle

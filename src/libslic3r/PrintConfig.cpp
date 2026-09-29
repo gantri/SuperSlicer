@@ -3316,6 +3316,15 @@ void PrintConfigDef::init_fff_params()
     def->mode = comExpert | comPrusa;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("internal_bridge_expansion", coBool);
+    def->label = L("Anchor internal bridges to infill");
+    def->category = OptionCategory::infill;
+    def->tooltip = L("When creating internal bridges (the solid layer printed over sparse infill), extend each line"
+        " to the nearest infill line it can rest on. This way it doesn't curl up as when a bridge line ends over a void."
+        "\nThis uses a different computation of the internal bridges: leave it off to keep them exactly as before.");
+    def->mode = comAdvancedE | comSuSi;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("infill_only_where_needed", coBool);
     def->label = L("Only infill where needed");
     def->category = OptionCategory::infill;
@@ -8076,6 +8085,7 @@ std::unordered_set<std::string> prusa_export_to_remove_keys = {
 "infill_connection_bridge",
 "infill_dense_algo",
 "infill_dense",
+"internal_bridge_expansion",
 "infill_extrusion_spacing",
 "ironing_acceleration",
 "lift_min",
