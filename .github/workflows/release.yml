@@ -4,6 +4,13 @@ name: Release windows x64
 # tag included: the version is the next patch after the newest gantri-v* tag, and
 # `gh release create` creates that tag on the merge commit.
 #
+# Every merge into gantri-beta builds the same way but publishes a pre-release, so a
+# feature can be tried on real parts before it goes into an official release. Its
+# version is the next official one plus a counter: 1.0.12-beta.1, 1.0.12-beta.2, ...
+# The counter restarts once 1.0.12 ships from gantri-main.
+# gantri-beta is never merged into gantri-main: a feature reaches gantri-main through
+# its own branch once it is approved.
+#
 # The version names the Gantri fork only. The SuperSlicer version stays pinned to the
 # one in version.inc and the fork version goes into the build id suffix, so the About
 # dialog reads `SuperSlicer_2.5.59.2+gantri.1.0.1`.
@@ -15,6 +22,10 @@ on:
   push:
     branches:
       - gantri-main
+      - gantri-beta
+    # A merge that only changes the CI itself has nothing new to ship.
+    paths-ignore:
+      - '.github/**'
   workflow_dispatch:
 
 jobs:
@@ -105,7 +116,9 @@ jobs:
           # Rehearsal run: never claims a version number a real release could want.
           $ver = "dev." + $env:GITHUB_SHA.Substring(0, 7)
         } else {
+          # Official tags only: a beta tag like gantri-v1.0.12-beta.1 is not a [version].
           $last = git tag -l 'gantri-v*' |
+                  Where-Object { $_ -match '^gantri-v\d+\.\d+\.\d+$' } |
                   Sort-Object { [version]($_ -replace '^gantri-v', '') } |
                   Select-Object -Last 1
           if ($last) {
@@ -113,6 +126,10 @@ jobs:
             $ver = "$($v.Major).$($v.Minor).$($v.Build + 1)"
           } else {
             $ver = '1.0.0'
+          }
+          if ($env:GITHUB_REF_NAME -eq 'gantri-beta') {
+            $n = @(git tag -l "gantri-v$ver-beta.*").Count + 1
+            $ver = "$ver-beta.$n"
           }
         }
         Write-Host "Gantri version: $ver"
@@ -197,8 +214,12 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
+        # A beta is a pre-release: it never shows up as the latest release.
+        prerelease=()
+        if [ "$GITHUB_REF_NAME" = "gantri-beta" ]; then prerelease=(--prerelease); fi
         gh release create "gantri-v${GANTRI_VERSION}" \
           --target "$GITHUB_SHA" \
           --title "SuperSlicer Gantri $GANTRI_VERSION" \
           --generate-notes \
+          "${prerelease[@]}" \
           "SuperSlicer_Gantri_${GANTRI_VERSION}_win64.zip"
