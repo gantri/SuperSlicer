@@ -26,7 +26,8 @@ else ()
     endif ()
 
     ExternalProject_Add(dep_MPFR
-        URL http://ftp.vim.org/ftp/gnu/mpfr/mpfr-3.1.6.tar.bz2 https://www.mpfr.org/mpfr-3.1.6/mpfr-3.1.6.tar.bz2  # mirrors are allowed
+        # ftp.vim.org no longer answers; the GNU mirror first, mpfr.org as fallback (same hash).
+        URL https://ftp.gnu.org/gnu/mpfr/mpfr-3.1.6.tar.bz2 https://www.mpfr.org/mpfr-3.1.6/mpfr-3.1.6.tar.bz2
         URL_HASH SHA256=cf4f4b2d80abb79e820e78c8077b6725bbbb4e8f41896783c899087be0e94068
         DOWNLOAD_DIR ${DEP_DOWNLOAD_DIR}/MPFR
         BUILD_IN_SOURCE ON
