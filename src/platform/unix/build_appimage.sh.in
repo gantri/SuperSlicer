@@ -1,10 +1,15 @@
 #!/bin/sh
-APPIMAGETOOLURL="https://github.com/AppImage/AppImageKit/releases/latest/download/appimagetool-x86_64.AppImage"
+set -e
+# appimagetool moved out of AppImageKit, whose "latest" download now answers 404. Pinned to
+# a release and checked by hash, so a new upstream build cannot change our package unnoticed.
+APPIMAGETOOLURL="https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage"
+APPIMAGETOOLSHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
 
 
 APP_IMAGE="@SLIC3R_APP_KEY@_ubu64.AppImage"
 
 wget ${APPIMAGETOOLURL} -O ../appimagetool.AppImage
+echo "${APPIMAGETOOLSHA256}  ../appimagetool.AppImage" | sha256sum -c -
 chmod +x ../appimagetool.AppImage
 
 sed -i -e 's#/usr#././#g' bin/@SLIC3R_APP_CMD@

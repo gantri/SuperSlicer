@@ -17,6 +17,11 @@ name: Release windows x64
 #
 # Running this by hand (workflow_dispatch) builds and uploads the artifact without
 # tagging or publishing anything, which is how to rehearse the whole thing.
+#
+# Linux is built from the same commit and attached to the same release as an AppImage
+# (SuperSlicer_Gantri_<version>_linux64.AppImage). Services that slice without a desktop
+# run it headless. It waits for the Windows build, which resolves the version and
+# publishes the release; a Linux failure leaves the Windows release in place.
 
 on:
   push:
@@ -75,6 +80,9 @@ jobs:
     needs: build_dep
     permissions:
       contents: write
+    outputs:
+      # The Linux build stamps and publishes under this same version.
+      version: ${{ steps.version.outputs.version }}
 
     steps:
     - uses: actions/checkout@v4
@@ -109,6 +117,7 @@ jobs:
       working-directory: ./resources/profiles
       run: git submodule update --init
     - name: resolve version
+      id: version
       shell: powershell
       run: |
         $ErrorActionPreference = 'Stop'
@@ -134,6 +143,7 @@ jobs:
         }
         Write-Host "Gantri version: $ver"
         Add-Content -Path $env:GITHUB_ENV -Value "GANTRI_VERSION=$ver"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$ver"
     - name: stamp version
       shell: powershell
       run: (Get-Content version.inc) | Foreach-Object {$_ -replace "\+UNKNOWN", ("+gantri." + $env:GANTRI_VERSION)} | Set-Content version.inc
@@ -223,3 +233,100 @@ jobs:
           --generate-notes \
           "${prerelease[@]}" \
           "SuperSlicer_Gantri_${GANTRI_VERSION}_win64.zip"
+
+  build_dep_linux:
+    runs-on: ubuntu-22.04
+    env:
+      # CMake 4 refuses projects that declare a minimum below 3.5, which several of the
+      # older dependency recipes do. This keeps them building on whatever CMake the image has.
+      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: install system libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev curl libssl-dev libcurl4-openssl-dev m4
+    - name: deps cache key
+      # Same scheme as Windows: the committed tree hash of deps/.
+      id: deps_key
+      run: echo "sha=$(git rev-parse HEAD:deps)" >> "$GITHUB_OUTPUT"
+    - name: cache deps
+      id: cache_deps
+      uses: actions/cache@v4
+      with:
+        path: ./deps/build/destdir
+        key: deps-linux-x64-ubuntu2204-gtk3-${{ steps.deps_key.outputs.sha }}
+    - name: cmake and make deps
+      if: steps.cache_deps.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p deps/build
+        cd deps/build
+        cmake .. -DDEP_WX_GTK3=ON
+        make -j"$(nproc)"
+        # The slicer's cmake looks for wxWidgets' scintilla under its GTK3-specific name.
+        cp destdir/usr/local/lib/libwxscintilla-3.1.a destdir/usr/local/lib/libwx_gtk3u_scintilla-3.1.a
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: deps_linux
+        path: ./deps/build/destdir/
+        include-hidden-files: true
+        retention-days: 1
+
+  build_linux:
+    runs-on: ubuntu-22.04
+    needs: [build_dep_linux, build]
+    permissions:
+      contents: write
+    env:
+      GANTRI_VERSION: ${{ needs.build.outputs.version }}
+      CMAKE_POLICY_VERSION_MINIMUM: '3.5'
+      # The runner has no FUSE, so AppImages (appimagetool, then our own for the check)
+      # unpack themselves instead of mounting.
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: install system libraries
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev curl libssl-dev libcurl4-openssl-dev m4
+    - name: update submodule profiles
+      working-directory: ./resources/profiles
+      run: git submodule update --init
+    - name: stamp version
+      run: sed -i "s/+UNKNOWN/+gantri.${GANTRI_VERSION}/" version.inc
+    - name: download deps
+      uses: actions/download-artifact@v4
+      with:
+        name: deps_linux
+        path: deps/build/destdir
+    - name: cmake and make
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/deps/build/destdir/usr/local" -DSLIC3R_STATIC=1 -DSLIC3R_GTK=3 -DCMAKE_BUILD_TYPE=Release
+        make -j"$(nproc)" Slic3r
+        make gettext_po_to_mo
+    - name: package AppImage
+      working-directory: ./build
+      run: |
+        chmod +x src/BuildLinuxImage.sh
+        src/BuildLinuxImage.sh -i
+        mv SuperSlicer_ubu64.AppImage "../SuperSlicer_Gantri_${GANTRI_VERSION}_linux64.AppImage"
+    - name: check the AppImage runs
+      # Headless, the way services that slice with it run it; it must report this version.
+      run: ./SuperSlicer_Gantri_${GANTRI_VERSION}_linux64.AppImage --help | grep -F "+gantri.${GANTRI_VERSION}"
+    - name: Upload artifact
+      # Rehearsal runs only, as on Windows.
+      if: github.event_name != 'push'
+      uses: actions/upload-artifact@v4
+      with:
+        name: SuperSlicer_Gantri_${{ env.GANTRI_VERSION }}_linux64
+        path: SuperSlicer_Gantri_${{ env.GANTRI_VERSION }}_linux64.AppImage
+    - name: attach to the release
+      if: github.event_name == 'push'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: gh release upload "gantri-v${GANTRI_VERSION}" "SuperSlicer_Gantri_${GANTRI_VERSION}_linux64.AppImage"
