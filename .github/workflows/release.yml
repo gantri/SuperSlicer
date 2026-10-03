@@ -291,7 +291,8 @@ jobs:
     - name: install system libraries
       run: |
         sudo apt-get update
-        sudo apt-get install -y libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev curl libssl-dev libcurl4-openssl-dev m4
+        # gettext provides msgfmt for the translation files (.mo), as on Windows.
+        sudo apt-get install -y libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev curl libssl-dev libcurl4-openssl-dev m4 gettext
     - name: update submodule profiles
       working-directory: ./resources/profiles
       run: git submodule update --init
