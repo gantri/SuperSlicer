@@ -33,6 +33,10 @@ on:
       - '.github/**'
   workflow_dispatch:
 
+# Read-only unless a job says otherwise; only the jobs that publish ask for contents: write.
+permissions:
+  contents: read
+
 jobs:
   build_dep:
     runs-on: windows-2022
@@ -248,9 +252,10 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y libgtk-3-dev libglew-dev libudev-dev libdbus-1-dev curl libssl-dev libcurl4-openssl-dev m4
     - name: deps cache key
-      # Same scheme as Windows: the committed tree hash of deps/.
+      # The committed tree hashes of deps/ and of the CMake modules it loads. Bump the
+      # revision (r1) when the flags or system libraries used to build them change.
       id: deps_key
-      run: echo "sha=$(git rev-parse HEAD:deps)" >> "$GITHUB_OUTPUT"
+      run: echo "sha=r1-$(git rev-parse HEAD:deps)-$(git rev-parse HEAD:cmake/modules)" >> "$GITHUB_OUTPUT"
     - name: cache deps
       id: cache_deps
       uses: actions/cache@v4
@@ -318,6 +323,8 @@ jobs:
         mv SuperSlicer_ubu64.AppImage "../SuperSlicer_Gantri_${GANTRI_VERSION}_linux64.AppImage"
     - name: check the AppImage runs
       # Headless, the way services that slice with it run it; it must report this version.
+      # bash gets pipefail, so the AppImage failing after printing its version still fails.
+      shell: bash
       run: ./SuperSlicer_Gantri_${GANTRI_VERSION}_linux64.AppImage --help | grep -F "+gantri.${GANTRI_VERSION}"
     - name: Upload artifact
       # Rehearsal runs only, as on Windows.
