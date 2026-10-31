@@ -118,7 +118,6 @@ FillConcentricWGapFill::fill_surface_extrusion(
             distance = scale_t(this->get_spacing());
         }
 
-        ExPolygons gaps;
         std::vector< std::vector<Polygons>> bunch_2_shell_2_loops;
         bunch_2_shell_2_loops.emplace_back(); // create a new bunch before a gap
         bunch_2_shell_2_loops.back().push_back(to_polygons(expolygon)); // add first shell
@@ -129,23 +128,45 @@ FillConcentricWGapFill::fill_surface_extrusion(
             ExPolygons next_onion = offset2_ex(last, -(distance + scale_d(this->get_spacing()) / 2), +(scale_d(this->get_spacing()) / 2));
             ExPolygons new_gaps = diff_ex(
                 offset_ex(last, -0.5f * distance),
-                offset_ex(next_onion, 0.5f * distance + 10));  // 10 = safety offset         
+                offset_ex(next_onion, 0.5f * distance + 10));  // 10 = safety offset
+            //add next shell (into the last collection)
             bunch_2_shell_2_loops.back().push_back(to_polygons(next_onion));
+            //if there is some gaps, then we need to create a new collection for the next shells, so they will be printed after the gaps.
             if (!new_gaps.empty()) {
-                append(gaps, new_gaps);
+                if (first && !this->no_overlap_expolygons.empty()) {
+                    new_gaps = intersection_ex(new_gaps, this->no_overlap_expolygons);
+                }
                 bunch_2_gaps.push_back(std::move(new_gaps));
-                //create a new collection for next bunch.
-                bunch_2_shell_2_loops.emplace_back();
+                if (!bunch_2_shell_2_loops.back().empty() && bunch_2_shell_2_loops.back().back().empty()) {
+                    bunch_2_shell_2_loops.back().pop_back();
+                }
+                //create a new collection for next bunch (if the loop doesn't stop here).
+                if (!next_onion.empty()) {
+                    bunch_2_shell_2_loops.emplace_back();
+                }
             }
+            // refresh before next iteration
             last = next_onion;
-            if (first && !this->no_overlap_expolygons.empty()) {
-                gaps = intersection_ex(gaps, this->no_overlap_expolygons);
-            }
             first = false;
         }
+        if (!bunch_2_shell_2_loops.back().empty() && bunch_2_shell_2_loops.back().back().empty()) {
+            bunch_2_shell_2_loops.back().pop_back();
+        }
         if (bunch_2_shell_2_loops.back().empty()) {
-            assert(bunch_2_shell_2_loops.size() > bunch_2_gaps.size());
+            assert(bunch_2_shell_2_loops.size() >= bunch_2_gaps.size());
+            if (bunch_2_shell_2_loops.size() == bunch_2_gaps.size()) {
+                assert(bunch_2_gaps.size() > 1);
+                if (bunch_2_gaps.size() > 1) {
+                    // merge last two gaps (inside the last perimeter & after the last perimeter are both extruded
+                    // after the last perimeter)
+                    append(bunch_2_gaps[bunch_2_gaps.size() - 2], bunch_2_gaps.back());
+                    bunch_2_gaps.pop_back();
+                }
+            }
             bunch_2_shell_2_loops.pop_back();
+            if (!bunch_2_shell_2_loops.empty() && !bunch_2_shell_2_loops.back().empty() && bunch_2_shell_2_loops.back().back().empty()) {
+                bunch_2_shell_2_loops.back().pop_back();
+            }
         }
 
         // generate paths from the outermost to the innermost, to avoid
